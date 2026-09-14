@@ -1,0 +1,20 @@
+{
+  "name": "loop-whatsapp-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp Cloud API webhook starter for Loop Inmobiliaria",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "axios": "^1.7.2",
+    "body-parser": "^1.20.2"
+  },
+  "_note": "axios is used for both the WhatsApp Graph API and the OpenAI API calls",
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
