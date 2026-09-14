@@ -24,6 +24,13 @@ const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const conversations = {};
 
 // -----------------------------------------------------------------
+// 0) HEALTH CHECK (for UptimeRobot pings to keep the free server awake)
+// -----------------------------------------------------------------
+app.get("/", (req, res) => {
+  res.send("Loop WhatsApp bot is running.");
+});
+
+// -----------------------------------------------------------------
 // 1) WEBHOOK VERIFICATION (Meta calls this once when you click
 //    "Verify and Save" in the Meta app dashboard).
 // -----------------------------------------------------------------
