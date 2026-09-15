@@ -20,7 +20,19 @@ router.post('/api/conversations/:phone/mode', (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 });
-
+router.get('/api/stats', (req, res) => {
+  const conversationState = require('../services/conversationState');
+  const all = conversationState.getAll();
+  const leads = all.map(c => conversationState.getConversation(c.phone).lead).filter(Boolean);
+  res.json({
+    success: true,
+    data: {
+      total: all.length,
+      hot: leads.filter(l => l.temperature === 'Caliente').length,
+      new: all.length - leads.length,
+    },
+  });
+});
 router.post('/api/conversations/:phone/reply', async (req, res) => {
   try {
     await sendTextMessage(req.params.phone, req.body.text);
