@@ -4,7 +4,8 @@ function getOrCreate(phone) {
   if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null };
   return state[phone];
 }
-
+function setLead(phone, lead) { getOrCreate(phone).lead = lead; }
+function getLead(phone) { return getOrCreate(phone).lead; }
 function addMessage(phone, sender, text) {
   const c = getOrCreate(phone);
   c.messages.push({ sender, text, timestamp: new Date().toISOString() });
