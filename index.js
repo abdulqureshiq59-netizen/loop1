@@ -58,7 +58,7 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   logger.info(`✅ Server running on port ${PORT}`);
-  logger.info(`📱 Webhook URL: https://your-render-url.onrender.com/webhook`);
+logger.info(`📱 Webhook URL: https://loop1-qao5.onrender.com/webhook`);
   logger.info(`📊 Dashboard URL: https://your-render-url.onrender.com/dashboard`);
   logger.info(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
 });
