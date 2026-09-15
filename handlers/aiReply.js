@@ -1,31 +1,40 @@
-// handlers/aiReply.js
 const openai = require("../config/openai");
 const logger = require("../utils/logger");
 
-// Store conversation history in memory (for testing)
-// In production, use MongoDB or PostgreSQL
 const conversations = {};
 
-const SYSTEM_PROMPT = `You are the commercial assistant for Loop Inmobiliaria, a real estate agency in Uruguay.
+const BASE_PROMPT = `You are the commercial assistant for Loop Inmobiliaria, a real estate agency in Uruguay.
 // TEMP: replying in English for testing — switch back to Spanish before going live with the client.
 
 Reply briefly, warmly, and professionally, in max 2-3 lines.
 Your goal is to understand if the client wants to buy, rent, or invest, and get their zone, budget, and property type.
-If they ask about a specific property, say an agent will follow up with exact info. Never invent property details.`;
+Never invent property details that aren't given to you.`;
 
-async function getAIReply(from, userText) {
+function buildSystemPrompt(property) {
+  if (!property) {
+    return `${BASE_PROMPT}\nIf they ask about a specific property, say an agent will follow up with exact info.`;
+  }
+  return `${BASE_PROMPT}
+The customer is asking about this specific property — use ONLY these real details:
+- ID: ${property.prop_id}
+- Title: ${property.title}
+- Address/zone: ${property.address}, ${property.zone}
+- Price: ${property.price || "not listed, tell them an agent will confirm"}
+- Bedrooms: ${property.bedrooms}
+- Operation: ${property.operation}
+Mention that ${property.agent_name || "the assigned agent"} will follow up with more details.`;
+}
+
+async function getAIReply(from, userText, property = null) {
   try {
-    // Initialize conversation history if not exists
     if (!conversations[from]) {
-      conversations[from] = [
-        { role: "system", content: SYSTEM_PROMPT }
-      ];
+      conversations[from] = [{ role: "system", content: buildSystemPrompt(property) }];
+    } else {
+      conversations[from][0] = { role: "system", content: buildSystemPrompt(property) };
     }
 
-    // Add user message
     conversations[from].push({ role: "user", content: userText });
 
-    // Call OpenAI
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: conversations[from],
@@ -34,26 +43,18 @@ async function getAIReply(from, userText) {
     });
 
     const reply = response.choices[0].message.content.trim();
-
-    // Store AI response
     conversations[from].push({ role: "assistant", content: reply });
 
-    // Keep history manageable (max 20 messages)
     if (conversations[from].length > 20) {
-      conversations[from] = [
-        conversations[from][0],
-        ...conversations[from].slice(-19),
-      ];
+      conversations[from] = [conversations[from][0], ...conversations[from].slice(-19)];
     }
 
     logger.info(`AI reply generated for ${from}`);
     return reply;
   } catch (err) {
     logger.error("Error calling OpenAI:", err);
-    return "Disculpá, tuve un problema técnico. Un agente te va a responder en breve.";
+    return "Sorry, I had a technical issue. An agent will get back to you shortly.";
   }
 }
 
-module.exports = {
-  getAIReply,
-};
+module.exports = { getAIReply };
