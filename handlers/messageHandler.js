@@ -1,6 +1,7 @@
 const { getAIReply } = require("./aiReply");
 const { sendTextMessage } = require("../utils/whatsappAPI");
 const conversationState = require("../services/conversationState");
+const { extractPropertyId, findPropertyById } = require("../services/propertyLookup");
 const logger = require("../utils/logger");
 
 async function handleIncomingMessage(message, from) {
@@ -12,12 +13,25 @@ async function handleIncomingMessage(message, from) {
     conversationState.addMessage(from, "customer", text);
 
     if (conversationState.getMode(from) === "human") {
-      logger.info(`Mode is HUMAN for ${from} — AI stays silent, agent replies from dashboard`);
+      logger.info(`Mode is HUMAN for ${from} — AI stays silent`);
       return;
     }
 
+    if (type === "text") {
+      const propId = extractPropertyId(text);
+      if (propId) {
+        const property = await findPropertyById(propId);
+        if (property) {
+          conversationState.setProperty(from, property);
+          logger.info(`Identified property ${propId} for ${from}: ${property.title}`);
+        } else {
+          logger.warn(`Property ${propId} mentioned but not found in sheet`);
+        }
+      }
+    }
+
     const reply = type === "text"
-      ? await getAIReply(from, text)
+      ? await getAIReply(from, text, conversationState.getProperty(from))
       : "Got your message. An agent will follow up shortly.";
 
     conversationState.addMessage(from, "ai", reply);
