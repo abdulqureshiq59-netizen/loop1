@@ -460,13 +460,27 @@
         </div>
     </div>
     
-   <script>
-let selectedPhone = null;
+    
+        
+        <!-- const GAS_DEPLOYMENT_URL = "https://script.google.com/macros/s/AKfycbwA4CpRRFr62k_m_rYP9cAZkgCyfSIzxFmTXEo6Lv3JuH0svRpR97f48E9OkMdLxquNtw/usercontent"; -->
+        
+  <script>
+    let selectedPhone = null;
 let currentMode = 'ai';
 
 async function loadConversations() {
   const r = await (await fetch('/api/conversations')).json();
   if (r.success) renderConversations(r.data);
+  loadStats();
+}
+
+async function loadStats() {
+  const r = await (await fetch('/api/stats')).json();
+  if (r.success) {
+    document.getElementById('totalLeads').textContent = r.data.total;
+    document.getElementById('hotLeads').textContent = r.data.hot;
+    document.getElementById('newLeads').textContent = r.data.new;
+  }
 }
 
 function renderConversations(list) {
@@ -487,15 +501,31 @@ async function selectConversation(phone) {
   selectedPhone = phone;
   const r = await (await fetch(`/api/conversations/${phone}`)).json();
   if (!r.success) return;
+
   currentMode = r.data.mode;
   document.getElementById('customerName').textContent = phone;
   document.getElementById('customerPhone').textContent = `📱 ${phone}`;
   updateModeButtons();
+
   document.getElementById('messagesContainer').innerHTML = r.data.messages.map(m => `
     <div class="message ${m.sender === 'customer' ? 'customer' : 'ai'}">
       <div><div class="message-bubble">${m.text}</div>
       <div class="message-time">${new Date(m.timestamp).toLocaleTimeString()}</div></div>
     </div>`).join('');
+
+  const lead = r.data.lead;
+  const tempMap = { 'Caliente': 'hot', 'Tibio': 'warm', 'Frio': 'cold' };
+  document.getElementById('leadStatus').textContent = lead ? lead.temperature : 'NEW';
+  document.getElementById('leadStatus').className = 'badge badge-' + (lead ? (tempMap[lead.temperature] || 'new') : 'new');
+  document.getElementById('infoName').textContent = lead && lead.name ? lead.name : '-';
+  document.getElementById('infoOperation').textContent = lead && lead.operation ? lead.operation : '-';
+  document.getElementById('infoType').textContent = lead && lead.type ? lead.type : '-';
+  document.getElementById('infoZone').textContent = lead && lead.zone ? lead.zone : '-';
+  document.getElementById('infoBudget').textContent = lead && lead.budget ? lead.budget : '-';
+  document.getElementById('infoBedrooms').textContent = lead && lead.bedrooms ? lead.bedrooms : '-';
+  document.getElementById('infoPhone').textContent = phone;
+  document.getElementById('infoChannel').textContent = 'WhatsApp';
+
   loadConversations();
 }
 
@@ -530,6 +560,6 @@ async function sendMessage() {
 
 loadConversations();
 setInterval(() => { loadConversations(); if (selectedPhone) selectConversation(selectedPhone); }, 5000);
-</script>
+  </script>
 </body>
 </html>
