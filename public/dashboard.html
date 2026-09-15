@@ -460,160 +460,76 @@
         </div>
     </div>
     
-    <script>
-        let allLeads = [];
-        let selectedLead = null;
-        
-        const GAS_DEPLOYMENT_URL = "https://script.google.com/macros/s/AKfycbwA4CpRRFr62k_m_rYP9cAZkgCyfSIzxFmTXEo6Lv3JuH0svRpR97f48E9OkMdLxquNtw/usercontent";
-        
-        // Render conversations list
-        function renderConversations() {
-            const list = document.getElementById('conversationsList');
-            list.innerHTML = '';
-            
-            allLeads.forEach(lead => {
-                const item = document.createElement('div');
-                item.className = 'conversation-item';
-                item.innerHTML = `
-                    <div class="conv-name">${lead.customer_name}</div>
-                    <div class="conv-preview">${lead.last_message || 'No messages'}</div>
-                    <div class="conv-time">${new Date(lead.created_at).toLocaleDateString()}</div>
-                `;
-                item.onclick = () => selectLead(lead);
-                list.appendChild(item);
-            });
-        }
-        
-        // Select a lead
-        function selectLead(lead) {
-            selectedLead = lead;
-            
-            // Update header
-            document.getElementById('customerName').textContent = lead.customer_name;
-            document.getElementById('customerPhone').textContent = `📱 ${lead.phone} • ${lead.channel}`;
-            
-            // Update right panel
-            document.getElementById('infoName').textContent = lead.customer_name;
-            document.getElementById('infoPhone').textContent = lead.phone;
-            document.getElementById('infoChannel').textContent = lead.channel;
-            document.getElementById('infoAgent').textContent = lead.assigned_agent;
-            document.getElementById('infoOperation').textContent = lead.type;
-            document.getElementById('infoType').textContent = lead.type;
-            document.getElementById('infoZone').textContent = lead.zone;
-            document.getElementById('infoBudget').textContent = lead.budget;
-            document.getElementById('infoBedrooms').textContent = lead.bedrooms;
-            
-            // Update status badge
-            const statusBadge = document.getElementById('leadStatus');
-            statusBadge.textContent = lead.status || 'NEW';
-            statusBadge.className = `badge badge-${lead.status.toLowerCase()}`;
-            
-            // Update messages
-            renderMessages();
-            
-            // Highlight active conversation
-            document.querySelectorAll('.conversation-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            event.target.closest('.conversation-item').classList.add('active');
-        }
-        
-        // Render messages
-        function renderMessages() {
-            const container = document.getElementById('messagesContainer');
-            container.innerHTML = `
-                <div class="message customer">
-                    <div>
-                        <div class="message-bubble">${selectedLead.last_message || 'No messages yet'}</div>
-                        <div class="message-time">${new Date(selectedLead.created_at).toLocaleString()}</div>
-                    </div>
-                </div>
-                <div class="message ai">
-                    <div>
-                        <div class="message-bubble">¡Hola! Bienvenido a Loop Inmobiliaria. ¿Cómo puedo ayudarte?</div>
-                        <div class="message-time">Just now</div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Load statistics
-       // Replace this function in dashboard.html
+   <script>
+let selectedPhone = null;
+let currentMode = 'ai';
 
-async function loadLeads() {
-    try {
-        const response = await fetch(`${GAS_DEPLOYMENT_URL}?action=getLeads`);
-        const text = await response.text();
-        const result = JSON.parse(text);
-        
-        if (result.success) {
-            allLeads = result.data;
-            renderConversations();
-            loadStats();
-        } else {
-            console.error("Error:", result.error);
-        }
-    } catch (err) {
-        console.error('Error loading leads:', err);
-    }
+async function loadConversations() {
+  const r = await (await fetch('/api/conversations')).json();
+  if (r.success) renderConversations(r.data);
 }
 
-async function loadStats() {
-    try {
-        const response = await fetch(`${GAS_DEPLOYMENT_URL}?action=getStats`);
-        const text = await response.text();
-        const result = JSON.parse(text);
-        
-        if (result.success) {
-            document.getElementById('totalLeads').textContent = result.data.total;
-            document.getElementById('hotLeads').textContent = result.data.hot;
-            document.getElementById('newLeads').textContent = result.data.new;
-        }
-    } catch (err) {
-        console.error('Error loading stats:', err);
-    }
+function renderConversations(list) {
+  const el = document.getElementById('conversationsList');
+  el.innerHTML = '';
+  list.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'conversation-item' + (c.phone === selectedPhone ? ' active' : '');
+    item.innerHTML = `<div class="conv-name">${c.phone}</div>
+      <div class="conv-preview">${c.lastMessage ? c.lastMessage.text : 'No messages'}</div>
+      <div class="conv-time">${c.lastMessage ? new Date(c.lastMessage.timestamp).toLocaleTimeString() : ''}</div>`;
+    item.onclick = () => selectConversation(c.phone);
+    el.appendChild(item);
+  });
 }
 
-        
-        // Send message
-        function sendMessage() {
-            const input = document.getElementById('messageInput');
-            if (input.value.trim() && selectedLead) {
-                // Add message to UI
-                const container = document.getElementById('messagesContainer');
-                const msgDiv = document.createElement('div');
-                msgDiv.className = 'message customer';
-                msgDiv.innerHTML = `
-                    <div>
-                        <div class="message-bubble">${input.value}</div>
-                        <div class="message-time">Just now</div>
-                    </div>
-                `;
-                container.appendChild(msgDiv);
-                input.value = '';
-            }
-        }
-        
-        // Toggle AI/Human
-        function toggleAI(btn) {
-            const humanBtn = document.querySelector('.btn-human');
-            btn.classList.toggle('active');
-            btn.classList.toggle('inactive');
-            humanBtn.classList.toggle('inactive');
-            humanBtn.classList.toggle('active');
-        }
-        
-        function toggleHuman(btn) {
-            const aiBtn = document.querySelector('.btn-ai');
-            btn.classList.toggle('active');
-            btn.classList.toggle('inactive');
-            aiBtn.classList.toggle('inactive');
-            aiBtn.classList.toggle('active');
-        }
-        
-        // Load on page load
-        loadLeads();
-        setInterval(loadLeads, 10000); // Refresh every 10 seconds
-    </script>
+async function selectConversation(phone) {
+  selectedPhone = phone;
+  const r = await (await fetch(`/api/conversations/${phone}`)).json();
+  if (!r.success) return;
+  currentMode = r.data.mode;
+  document.getElementById('customerName').textContent = phone;
+  document.getElementById('customerPhone').textContent = `📱 ${phone}`;
+  updateModeButtons();
+  document.getElementById('messagesContainer').innerHTML = r.data.messages.map(m => `
+    <div class="message ${m.sender === 'customer' ? 'customer' : 'ai'}">
+      <div><div class="message-bubble">${m.text}</div>
+      <div class="message-time">${new Date(m.timestamp).toLocaleTimeString()}</div></div>
+    </div>`).join('');
+  loadConversations();
+}
+
+function updateModeButtons() {
+  const aiBtn = document.querySelector('.btn-ai'), humanBtn = document.querySelector('.btn-human');
+  aiBtn.classList.toggle('active', currentMode === 'ai');
+  aiBtn.classList.toggle('inactive', currentMode !== 'ai');
+  humanBtn.classList.toggle('active', currentMode === 'human');
+  humanBtn.classList.toggle('inactive', currentMode !== 'human');
+}
+
+async function setMode(mode) {
+  if (!selectedPhone) return;
+  await fetch(`/api/conversations/${selectedPhone}/mode`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
+  });
+  currentMode = mode;
+  updateModeButtons();
+}
+function toggleAI() { setMode('ai'); }
+function toggleHuman() { setMode('human'); }
+
+async function sendMessage() {
+  const input = document.getElementById('messageInput');
+  if (!input.value.trim() || !selectedPhone) return;
+  await fetch(`/api/conversations/${selectedPhone}/reply`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: input.value }),
+  });
+  input.value = '';
+  selectConversation(selectedPhone);
+}
+
+loadConversations();
+setInterval(() => { loadConversations(); if (selectedPhone) selectConversation(selectedPhone); }, 5000);
+</script>
 </body>
 </html>
