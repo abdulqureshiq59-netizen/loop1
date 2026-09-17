@@ -1,5 +1,6 @@
 // handlers/webhookHandler.js
 const { handleIncomingMessage } = require("./messageHandler");
+const { markMessageAsRead } = require("../utils/whatsappAPI");
 const logger = require("../utils/logger");
 
 function verifyWebhook(req, res) {
@@ -33,6 +34,11 @@ async function handleWebhookPost(req, res) {
     }
 
     const from = message.from; // Customer's WhatsApp number
+
+    // Mark as read immediately (blue ticks) — fire-and-forget, don't await
+    // this before generating the reply, it's just a UX signal to the customer
+    markMessageAsRead(message.id);
+
     await handleIncomingMessage(message, from);
   } catch (err) {
     logger.error("Error handling webhook POST:", err);
