@@ -4,6 +4,7 @@ const express = require("express");
 const path = require("path");
 const { verifyWebhook, handleWebhookPost } = require("./handlers/webhookHandler");
 const dashboardRoutes = require("./routes/dashboard");
+const pipelineRoutes = require("./routes/pipeline");
 const logger = require("./utils/logger");
 
 const app = express();
@@ -27,13 +28,19 @@ app.get("/", (req, res) => {
     status: "ok",
     message: "Loop Inmobiliaria AI Agent is running",
     dashboard: "http://localhost:3000/dashboard.html",
+    pipeline: "http://localhost:3000/pipeline",
     timestamp: new Date().toISOString(),
   });
 });
 
-// Dashboard HTML
+// Dashboard HTML (conversation view)
 app.get("/dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Pipeline HTML (kanban board)
+app.get("/pipeline", (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'pipeline.html'));
 });
 
 // WhatsApp webhook
@@ -42,6 +49,7 @@ app.post("/webhook", handleWebhookPost);
 
 // Dashboard API routes
 app.use(dashboardRoutes);
+app.use(pipelineRoutes);
 
 // ============================================
 // ERROR HANDLING
@@ -60,5 +68,6 @@ app.listen(PORT, () => {
   logger.info(`✅ Server running on port ${PORT}`);
 logger.info(`📱 Webhook URL: https://loop1-qao5.onrender.com/webhook`);
   logger.info(`📊 Dashboard URL: https://your-render-url.onrender.com/dashboard`);
+  logger.info(`📋 Pipeline URL: https://your-render-url.onrender.com/pipeline`);
   logger.info(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
 });
