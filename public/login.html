@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loop Inmobiliaria - Login</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+    background:#2c3e50; height:100vh; display:flex; align-items:center; justify-content:center;
+  }
+  .box {
+    background:#fff; border-radius:10px; padding:36px 32px; width:320px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.25);
+  }
+  .box h1 { font-size:1.3em; color:#2c3e50; margin-bottom:4px; }
+  .box p.sub { color:#7f8c8d; font-size:0.85em; margin-bottom:24px; }
+  label { display:block; font-size:0.85em; color:#2c3e50; margin-bottom:6px; margin-top:14px; }
+  input {
+    width:100%; padding:10px; border:1px solid #dfe4ea; border-radius:6px; font-size:0.95em;
+  }
+  button {
+    width:100%; margin-top:22px; padding:12px; background:#3498db; color:#fff; border:none;
+    border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95em;
+  }
+  button:hover { background:#2980b9; }
+  .error { color:#e74c3c; font-size:0.85em; margin-top:12px; display:none; }
+</style>
+</head>
+<body>
+  <form class="box" id="loginForm">
+    <h1>🏢 Loop Inmobiliaria</h1>
+    <p class="sub">Ingresá para ver el dashboard y el pipeline</p>
+    <label for="username">Usuario</label>
+    <input type="text" id="username" autocomplete="username" required>
+    <label for="password">Contraseña</label>
+    <input type="password" id="password" autocomplete="current-password" required>
+    <button type="submit">Ingresar</button>
+    <div class="error" id="error"></div>
+  </form>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('error');
+  errorEl.style.display = 'none';
+  try {
+    const r = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      }),
+    });
+    const data = await r.json();
+    if (data.success) {
+      window.location.href = '/pipeline';
+    } else {
+      errorEl.textContent = data.error || 'Error al ingresar';
+      errorEl.style.display = 'block';
+    }
+  } catch (err) {
+    errorEl.textContent = 'Error de conexión';
+    errorEl.style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>
