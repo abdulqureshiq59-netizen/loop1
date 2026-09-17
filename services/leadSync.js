@@ -1,14 +1,9 @@
-const axios = require('axios');
-const logger = require('../utils/logger');
-
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
+const leadsDb = require('./leadsDb');
 
 async function upsertLead(phone, leadData) {
-  try {
-    await axios.post(`${APPS_SCRIPT_URL}?action=upsertLead`, { phone, ...leadData });
-  } catch (err) {
-    logger.error('Error syncing lead to sheet:', err.message);
-  }
+  // Thin wrapper kept so messageHandler.js doesn't need to change — all the
+  // actual storage logic now lives in leadsDb.js (Postgres, no more Google).
+  await leadsDb.upsertLead(phone, leadData);
 }
 
 module.exports = { upsertLead };
