@@ -1,7 +1,7 @@
-const state = {}; // { [phone]: { mode: 'ai'|'human', messages: [], property: null } }
+const state = {}; // { [phone]: { mode: 'ai'|'human', messages: [], property: null, lead: null } }
 
 function getOrCreate(phone) {
-  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null };
+  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null };
   return state[phone];
 }
 function setLead(phone, lead) { getOrCreate(phone).lead = lead; }
@@ -28,4 +28,12 @@ function getAll() {
 }
 function getConversation(phone) { return getOrCreate(phone); }
 
-module.exports = { addMessage, getMode, setMode, setProperty, getProperty, getAll, getConversation };
+// IMPORTANT: setLead/getLead were previously missing from this export list.
+// messageHandler.js calls conversationState.setLead(...) after every message
+// (to store the AI's lead-qualification result) — without this export, that
+// call threw a TypeError that was NOT caught anywhere (it happens inside a
+// .then() with no .catch()), which crashed the entire Node process on
+// almost every incoming message. Render then auto-restarted the server,
+// wiping all in-memory conversations/leads each time — this was the actual
+// cause of the dashboard/pipeline looking broken and flaky.
+module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation };
