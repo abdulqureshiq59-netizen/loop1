@@ -1,3 +1,7 @@
+const messagesDb = require('./messagesDb');
+const leadsDb = require('./leadsDb');
+const logger = require('../utils/logger');
+
 const state = {}; // { [phone]: { mode: 'ai'|'human', messages: [], property: null, lead: null } }
 
 function getOrCreate(phone) {
@@ -6,16 +10,31 @@ function getOrCreate(phone) {
 }
 function setLead(phone, lead) { getOrCreate(phone).lead = lead; }
 function getLead(phone) { return getOrCreate(phone).lead; }
+
 function addMessage(phone, sender, text) {
   const c = getOrCreate(phone);
   c.messages.push({ sender, text, timestamp: new Date().toISOString() });
   if (c.messages.length > 100) c.messages = c.messages.slice(-100);
+
+  // Persist to Postgres in the background — this is what makes conversation
+  // history survive a restart/redeploy/crash instead of living only in RAM.
+  // Fire-and-forget with its own .catch(): a DB hiccup here must never
+  // break message handling (which already sent the reply by this point).
+  messagesDb.addMessage(phone, sender, text).catch(err => {
+    logger.error(`Failed to persist message for ${phone}:`, err.message);
+  });
 }
 
 function getMode(phone) { return getOrCreate(phone).mode; }
 function setMode(phone, mode) {
   if (mode !== 'ai' && mode !== 'human') throw new Error('mode must be ai or human');
   getOrCreate(phone).mode = mode;
+
+  // Same reasoning as addMessage: persist so a restart mid-conversation
+  // doesn't silently flip a human-controlled conversation back to AI.
+  leadsDb.setMode(phone, mode).catch(err => {
+    logger.error(`Failed to persist mode for ${phone}:`, err.message);
+  });
 }
 
 function setProperty(phone, property) { getOrCreate(phone).property = property; }
@@ -28,12 +47,22 @@ function getAll() {
 }
 function getConversation(phone) { return getOrCreate(phone); }
 
-// IMPORTANT: setLead/getLead were previously missing from this export list.
-// messageHandler.js calls conversationState.setLead(...) after every message
-// (to store the AI's lead-qualification result) — without this export, that
-// call threw a TypeError that was NOT caught anywhere (it happens inside a
-// .then() with no .catch()), which crashed the entire Node process on
-// almost every incoming message. Render then auto-restarted the server,
-// wiping all in-memory conversations/leads each time — this was the actual
-// cause of the dashboard/pipeline looking broken and flaky.
+// On boot, restore mode ('ai'/'human') for every known phone from Postgres,
+// so a redeploy doesn't lose track of conversations a human agent already
+// took control of. Message history itself is read fresh from messagesDb by
+// routes/dashboard.js (not cached here), so it survives restarts too.
+(async function hydrateModesFromDb() {
+  try {
+    const rows = await leadsDb.getAllModes();
+    rows.forEach(r => {
+      if (r.mode === 'ai' || r.mode === 'human') {
+        getOrCreate(r.phone).mode = r.mode;
+      }
+    });
+    logger.info(`Restored mode for ${rows.length} conversation(s) from database`);
+  } catch (err) {
+    logger.error('Failed to restore conversation modes from database:', err.message);
+  }
+})();
+
 module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation };
