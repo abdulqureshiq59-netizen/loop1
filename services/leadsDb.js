@@ -1,18 +1,19 @@
 // services/leadsDb.js
-// Leads storage using Render's PostgreSQL instead of Google Sheets — avoids
-// both the Apps Script anti-bot challenge (Google blocking Render's server
-// IP) and the service-account-key organization policy block. This talks
-// directly to Postgres, no Google involved at all.
+// Leads storage using Render's PostgreSQL. Now also tracks AI/Human `mode`
+// per phone (previously only in server RAM via conversationState.js — lost
+// on every restart/crash, which is risky: an agent could take manual
+// control, the server restarts for any reason, and the bot silently
+// resumes auto-replying mid-negotiation without anyone noticing).
 const { Pool } = require('pg');
 const logger = require('../utils/logger');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Render's internal Postgres needs this
+  ssl: { rejectUnauthorized: false },
 });
 
 const STAGE_ORDER = ["NUEVO", "CALIFICANDO", "CALIENTE", "CONTACTADO", "VISITA", "NEGOCIACION", "CERRADO"];
-const HUMAN_MANAGED_FROM_INDEX = 3; // CONTACTADO onward — auto-stage stops touching it
+const HUMAN_MANAGED_FROM_INDEX = 3;
 
 let initPromise = null;
 
@@ -34,10 +35,14 @@ async function ensureTable() {
         property_id TEXT DEFAULT '',
         agent_name TEXT DEFAULT '',
         stage TEXT DEFAULT 'NUEVO',
+        mode TEXT DEFAULT 'ai',
         last_message TEXT DEFAULT '',
         updated_at TIMESTAMPTZ DEFAULT now()
       );
     `);
+    // In case this table already existed from before the mode column existed.
+    await initPromise;
+    await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'ai';`);
   }
   return initPromise;
 }
@@ -46,10 +51,10 @@ function computeAutoStage(existingStage, data) {
   const existingIndex = STAGE_ORDER.indexOf(existingStage);
   if (existingIndex >= HUMAN_MANAGED_FROM_INDEX) return existingStage || 'NUEVO';
 
-  let candidateIndex = 0; // NUEVO
+  let candidateIndex = 0;
   const hasSomeInfo = data.operation || data.zone || data.budget || data.type;
-  if (data.temperature === 'Caliente') candidateIndex = 2; // CALIENTE
-  else if (hasSomeInfo) candidateIndex = 1; // CALIFICANDO
+  if (data.temperature === 'Caliente') candidateIndex = 2;
+  else if (hasSomeInfo) candidateIndex = 1;
 
   const newIndex = Math.max(existingIndex === -1 ? 0 : existingIndex, candidateIndex);
   return STAGE_ORDER[newIndex];
@@ -102,6 +107,12 @@ async function getAllLeads() {
   return res.rows;
 }
 
+async function getLeadByPhone(phone) {
+  await ensureTable();
+  const res = await pool.query('SELECT * FROM leads WHERE phone = $1', [phone]);
+  return res.rows[0] || null;
+}
+
 async function updateStage(phone, stage) {
   await ensureTable();
   const res = await pool.query(
@@ -111,4 +122,23 @@ async function updateStage(phone, stage) {
   if (res.rowCount === 0) throw new Error('Lead not found');
 }
 
-module.exports = { upsertLead, getAllLeads, updateStage };
+// --- mode (AI/Human) persistence ---
+
+async function setMode(phone, mode) {
+  await ensureTable();
+  // Upsert so setting mode works even before any lead data exists yet
+  // (e.g. mode gets set on the very first message of a conversation).
+  await pool.query(
+    `INSERT INTO leads (phone, mode, updated_at) VALUES ($1, $2, now())
+     ON CONFLICT (phone) DO UPDATE SET mode = $2, updated_at = now()`,
+    [phone, mode]
+  );
+}
+
+async function getAllModes() {
+  await ensureTable();
+  const res = await pool.query('SELECT phone, mode FROM leads');
+  return res.rows;
+}
+
+module.exports = { upsertLead, getAllLeads, getLeadByPhone, updateStage, setMode, getAllModes };
