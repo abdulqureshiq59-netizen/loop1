@@ -1,15 +1,40 @@
 const express = require('express');
 const router = express.Router();
 const conversationState = require('../services/conversationState');
+const messagesDb = require('../services/messagesDb');
+const leadsDb = require('../services/leadsDb');
 const { sendTextMessage } = require('../utils/whatsappAPI');
 const logger = require('../utils/logger');
 
-router.get('/api/conversations', (req, res) => {
-  res.json({ success: true, data: conversationState.getAll() });
+// Conversation list now comes from the database (messages table), not
+// server memory — this is what survives a restart/redeploy.
+router.get('/api/conversations', async (req, res) => {
+  try {
+    const list = await messagesDb.getConversationsSummary();
+    res.json({ success: true, data: list });
+  } catch (err) {
+    logger.error('Error loading conversations:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-router.get('/api/conversations/:phone', (req, res) => {
-  res.json({ success: true, data: conversationState.getConversation(req.params.phone) });
+router.get('/api/conversations/:phone', async (req, res) => {
+  try {
+    const phone = req.params.phone;
+    const [messages, lead] = await Promise.all([
+      messagesDb.getMessages(phone),
+      leadsDb.getLeadByPhone(phone),
+    ]);
+    // mode stays in-memory (hydrated from DB at boot, kept live during the
+    // process) — property is also in-memory only (a short-lived cache of
+    // "which property is this conversation currently about", not something
+    // that needs its own DB table).
+    const mode = conversationState.getMode(phone);
+    res.json({ success: true, data: { messages, lead, mode } });
+  } catch (err) {
+    logger.error('Error loading conversation:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 router.post('/api/conversations/:phone/mode', (req, res) => {
@@ -20,19 +45,7 @@ router.post('/api/conversations/:phone/mode', (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 });
-router.get('/api/stats', (req, res) => {
-  const conversationState = require('../services/conversationState');
-  const all = conversationState.getAll();
-  const leads = all.map(c => conversationState.getConversation(c.phone).lead).filter(Boolean);
-  res.json({
-    success: true,
-    data: {
-      total: all.length,
-      hot: leads.filter(l => l.temperature === 'Caliente').length,
-      new: all.length - leads.length,
-    },
-  });
-});
+
 router.post('/api/conversations/:phone/reply', async (req, res) => {
   try {
     await sendTextMessage(req.params.phone, req.body.text);
@@ -40,6 +53,26 @@ router.post('/api/conversations/:phone/reply', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     logger.error('Error sending agent reply:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/api/stats', async (req, res) => {
+  try {
+    const [conversations, leads] = await Promise.all([
+      messagesDb.getConversationsSummary(),
+      leadsDb.getAllLeads(),
+    ]);
+    res.json({
+      success: true,
+      data: {
+        total: conversations.length,
+        hot: leads.filter(l => l.temperature === 'Caliente').length,
+        new: leads.filter(l => l.stage === 'NUEVO').length,
+      },
+    });
+  } catch (err) {
+    logger.error('Error loading stats:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
