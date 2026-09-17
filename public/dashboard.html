@@ -10,21 +10,21 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f5f7fa;
             height: 100vh;
             overflow: hidden;
         }
-        
+
         .container {
             display: grid;
             grid-template-columns: 300px 1fr 350px;
             height: 100vh;
             gap: 0;
         }
-        
+
         /* ============ SIDEBAR ============ */
         .sidebar {
             background: #2c3e50;
@@ -32,19 +32,19 @@
             overflow-y: auto;
             border-right: 1px solid #34495e;
         }
-        
+
         .logo {
             padding: 20px;
             border-bottom: 1px solid #34495e;
             font-size: 1.3em;
             font-weight: bold;
         }
-        
+
         .stats {
             padding: 15px;
             border-bottom: 1px solid #34495e;
         }
-        
+
         .stat-item {
             margin: 10px 0;
             padding: 10px;
@@ -52,23 +52,23 @@
             border-radius: 6px;
             font-size: 0.9em;
         }
-        
+
         .stat-label {
             color: #95a5a6;
             font-size: 0.8em;
         }
-        
+
         .stat-value {
             color: #3498db;
             font-weight: bold;
             font-size: 1.2em;
         }
-        
+
         .search-box {
             padding: 15px;
             border-bottom: 1px solid #34495e;
         }
-        
+
         .search-box input {
             width: 100%;
             padding: 10px;
@@ -78,15 +78,15 @@
             color: white;
             font-size: 0.9em;
         }
-        
+
         .search-box input::placeholder {
             color: #95a5a6;
         }
-        
+
         .conversations {
             padding: 10px;
         }
-        
+
         .conversation-item {
             padding: 12px;
             margin: 8px 0;
@@ -96,22 +96,22 @@
             border-left: 4px solid transparent;
             transition: all 0.3s;
         }
-        
+
         .conversation-item:hover {
             background: #3d5a73;
         }
-        
+
         .conversation-item.active {
             background: #3498db;
             border-left-color: #fff;
         }
-        
+
         .conv-name {
             font-weight: bold;
             font-size: 0.95em;
             margin-bottom: 4px;
         }
-        
+
         .conv-preview {
             font-size: 0.85em;
             color: #bdc3c7;
@@ -119,13 +119,13 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        
+
         .conv-time {
             font-size: 0.75em;
             color: #95a5a6;
             margin-top: 4px;
         }
-        
+
         /* ============ MAIN CHAT AREA ============ */
         .main-content {
             display: flex;
@@ -133,7 +133,7 @@
             background: white;
             border-right: 1px solid #e0e0e0;
         }
-        
+
         .chat-header {
             padding: 20px;
             background: white;
@@ -142,22 +142,22 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .chat-header-info h2 {
             color: #2c3e50;
             margin-bottom: 5px;
         }
-        
+
         .chat-header-info p {
             color: #7f8c8d;
             font-size: 0.9em;
         }
-        
+
         .chat-controls {
             display: flex;
             gap: 10px;
         }
-        
+
         .btn {
             padding: 10px 15px;
             border: none;
@@ -167,33 +167,33 @@
             font-weight: bold;
             transition: all 0.3s;
         }
-        
+
         .btn-ai {
             background: #27ae60;
             color: white;
         }
-        
+
         .btn-ai:hover {
             background: #229954;
         }
-        
+
         .btn-ai.inactive {
             background: #95a5a6;
         }
-        
+
         .btn-human {
             background: #3498db;
             color: white;
         }
-        
+
         .btn-human:hover {
             background: #2980b9;
         }
-        
+
         .btn-human.inactive {
             background: #95a5a6;
         }
-        
+
         .messages-container {
             flex: 1;
             overflow-y: auto;
@@ -202,21 +202,21 @@
             flex-direction: column;
             gap: 15px;
         }
-        
+
         .message {
             display: flex;
             gap: 10px;
             margin-bottom: 10px;
         }
-        
+
         .message.customer {
             justify-content: flex-start;
         }
-        
+
         .message.ai {
             justify-content: flex-end;
         }
-        
+
         .message-bubble {
             max-width: 70%;
             padding: 12px 15px;
@@ -224,30 +224,30 @@
             font-size: 0.95em;
             line-height: 1.4;
         }
-        
+
         .message.customer .message-bubble {
             background: #ecf0f1;
             color: #2c3e50;
         }
-        
+
         .message.ai .message-bubble {
             background: #3498db;
             color: white;
         }
-        
+
         .message-time {
             font-size: 0.75em;
             color: #95a5a6;
             margin-top: 5px;
         }
-        
+
         .input-area {
             padding: 20px;
             border-top: 1px solid #e0e0e0;
             display: flex;
             gap: 10px;
         }
-        
+
         .input-area input {
             flex: 1;
             padding: 12px;
@@ -255,7 +255,7 @@
             border-radius: 6px;
             font-size: 0.9em;
         }
-        
+
         .input-area button {
             padding: 12px 20px;
             background: #3498db;
@@ -265,19 +265,19 @@
             cursor: pointer;
             font-weight: bold;
         }
-        
+
         /* ============ RIGHT PANEL ============ */
         .right-panel {
             background: #f8f9fa;
             overflow-y: auto;
             border-left: 1px solid #e0e0e0;
         }
-        
+
         .panel-section {
             padding: 20px;
             border-bottom: 1px solid #e0e0e0;
         }
-        
+
         .panel-section h3 {
             color: #2c3e50;
             margin-bottom: 15px;
@@ -285,26 +285,26 @@
             border-bottom: 2px solid #3498db;
             padding-bottom: 10px;
         }
-        
+
         .info-item {
             margin: 12px 0;
             padding: 10px;
             background: white;
             border-radius: 6px;
         }
-        
+
         .info-label {
             color: #7f8c8d;
             font-size: 0.85em;
             margin-bottom: 4px;
         }
-        
+
         .info-value {
             color: #2c3e50;
             font-weight: bold;
             word-break: break-word;
         }
-        
+
         .badge {
             display: inline-block;
             padding: 6px 12px;
@@ -313,27 +313,27 @@
             font-weight: bold;
             margin: 5px 0;
         }
-        
+
         .badge-new {
             background: #f39c12;
             color: white;
         }
-        
+
         .badge-hot {
             background: #e74c3c;
             color: white;
         }
-        
+
         .badge-warm {
             background: #f1c40f;
             color: #2c3e50;
         }
-        
+
         .badge-cold {
             background: #95a5a6;
             color: white;
         }
-        
+
         .empty-state {
             display: flex;
             flex-direction: column;
@@ -349,7 +349,7 @@
         <!-- SIDEBAR -->
         <div class="sidebar">
             <div class="logo">🏢 Loop IA</div>
-            
+
             <div class="stats">
                 <div class="stat-item">
                     <div class="stat-label">Total Leads</div>
@@ -364,14 +364,14 @@
                     <div class="stat-value" id="newLeads">0</div>
                 </div>
             </div>
-            
+
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Search customer...">
             </div>
-            
+
             <div class="conversations" id="conversationsList"></div>
         </div>
-        
+
         <!-- MAIN CHAT AREA -->
         <div class="main-content">
             <div class="chat-header">
@@ -384,74 +384,74 @@
                     <button class="btn btn-human inactive" onclick="toggleHuman(this)">👤 TAKE CONTROL</button>
                 </div>
             </div>
-            
+
             <div class="messages-container" id="messagesContainer">
                 <div class="empty-state">
                     <div style="font-size: 3em; margin-bottom: 10px;">💬</div>
                     <p>Select a conversation to view messages</p>
                 </div>
             </div>
-            
+
             <div class="input-area">
                 <input type="text" id="messageInput" placeholder="Type a message...">
                 <button onclick="sendMessage()">Send</button>
             </div>
         </div>
-        
+
         <!-- RIGHT PANEL -->
         <div class="right-panel">
             <div class="panel-section">
                 <h3>Lead Info</h3>
-                
+
                 <div class="info-item">
                     <div class="info-label">Status</div>
                     <div id="leadStatus" class="badge badge-new">NEW</div>
                 </div>
-                
+
                 <div class="info-item">
                     <div class="info-label">Name</div>
                     <div class="info-value" id="infoName">-</div>
                 </div>
-                
+
                 <div class="info-item">
                     <div class="info-label">Phone</div>
                     <div class="info-value" id="infoPhone">-</div>
                 </div>
-                
+
                 <div class="info-item">
                     <div class="info-label">Channel</div>
                     <div class="info-value" id="infoChannel">-</div>
                 </div>
-                
+
                 <div class="info-item">
                     <div class="info-label">Assigned To</div>
                     <div class="info-value" id="infoAgent">-</div>
                 </div>
             </div>
-            
+
             <div class="panel-section">
                 <h3>Preferences</h3>
-                
+
                 <div class="info-item">
                     <div class="info-label">Operation</div>
                     <div class="info-value" id="infoOperation">-</div>
                 </div>
-                
+
                 <div class="info-item">
                     <div class="info-label">Type</div>
                     <div class="info-value" id="infoType">-</div>
                 </div>
-                
+
                 <div class="info-item">
                     <div class="info-label">Zone</div>
                     <div class="info-value" id="infoZone">-</div>
                 </div>
-                
+
                 <div class="info-item">
                     <div class="info-label">Budget</div>
                     <div class="info-value" id="infoBudget">-</div>
                 </div>
-                
+
                 <div class="info-item">
                     <div class="info-label">Bedrooms</div>
                     <div class="info-value" id="infoBedrooms">-</div>
@@ -459,11 +459,7 @@
             </div>
         </div>
     </div>
-    
-    
-        
-        <!-- const GAS_DEPLOYMENT_URL = "https://script.google.com/macros/s/AKfycbwA4CpRRFr62k_m_rYP9cAZkgCyfSIzxFmTXEo6Lv3JuH0svRpR97f48E9OkMdLxquNtw/usercontent"; -->
-        
+
   <script>
     let selectedPhone = null;
 let currentMode = 'ai';
@@ -514,11 +510,17 @@ async function selectConversation(phone) {
     </div>`).join('');
 
   const lead = r.data.lead;
+  // Display-only translation: the stored value stays Spanish (Caliente,
+  // compra, etc.) — only what's shown on screen here is English. If this
+  // needs to go back to Spanish for the client later, these two maps can
+  // just be removed (or set to identity) — nothing else needs to change.
   const tempMap = { 'Caliente': 'hot', 'Tibio': 'warm', 'Frio': 'cold' };
-  document.getElementById('leadStatus').textContent = lead ? lead.temperature : 'NEW';
+  const tempLabels = { 'Caliente': 'HOT', 'Tibio': 'WARM', 'Frio': 'COLD' };
+  const operationLabels = { 'compra': 'Buy', 'alquiler': 'Rent', 'inversion': 'Invest' };
+  document.getElementById('leadStatus').textContent = lead ? (tempLabels[lead.temperature] || lead.temperature) : 'NEW';
   document.getElementById('leadStatus').className = 'badge badge-' + (lead ? (tempMap[lead.temperature] || 'new') : 'new');
   document.getElementById('infoName').textContent = lead && lead.name ? lead.name : '-';
-  document.getElementById('infoOperation').textContent = lead && lead.operation ? lead.operation : '-';
+  document.getElementById('infoOperation').textContent = lead && lead.operation ? (operationLabels[lead.operation] || lead.operation) : '-';
   document.getElementById('infoType').textContent = lead && lead.type ? lead.type : '-';
   document.getElementById('infoZone').textContent = lead && lead.zone ? lead.zone : '-';
   document.getElementById('infoBudget').textContent = lead && lead.budget ? lead.budget : '-';
