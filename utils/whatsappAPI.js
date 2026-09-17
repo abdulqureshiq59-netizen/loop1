@@ -29,6 +29,33 @@ async function sendTextMessage(to, bodyText) {
   }
 }
 
+// Marks the incoming message as "read" (blue double-check) as soon as it
+// arrives. Doesn't make the AI reply itself any faster, but it stops the
+// customer thinking the message was never seen while OpenAI is generating
+// the reply.
+async function markMessageAsRead(messageId) {
+  try {
+    await axios.post(
+      GRAPH_API_URL,
+      {
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: messageId,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (err) {
+    // Not critical — log and move on, don't block the actual reply over this
+    logger.error(`Error marking message ${messageId} as read:`, err.response?.data || err.message);
+  }
+}
+
 module.exports = {
   sendTextMessage,
+  markMessageAsRead,
 };
