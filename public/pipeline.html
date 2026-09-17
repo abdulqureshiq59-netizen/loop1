@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loop Inmobiliaria - Pipeline</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#f5f7fa; height:100vh; overflow:hidden; }
+
+  .topbar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; background:#2c3e50; color:#fff;
+  }
+  .topbar .brand { font-size:1.2em; font-weight:bold; display:flex; align-items:center; gap:8px; }
+  .topbar .summary { font-size:0.9em; color:#bdc3c7; }
+  .topbar a { color:#3498db; text-decoration:none; font-size:0.85em; font-weight:bold; }
+
+  .board {
+    display:flex; gap:14px; padding:16px; height:calc(100vh - 56px);
+    overflow-x:auto; align-items:flex-start;
+  }
+
+  .column {
+    background:#eef1f5; border-radius:8px; min-width:270px; max-width:270px;
+    display:flex; flex-direction:column; max-height:100%;
+  }
+  .column-header {
+    padding:12px 14px; font-weight:bold; font-size:0.85em; color:#2c3e50;
+    border-bottom:3px solid var(--stage-color, #3498db);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .column-count {
+    background:#fff; border-radius:12px; padding:2px 8px; font-size:0.8em; color:#7f8c8d;
+  }
+  .column-body { padding:10px; overflow-y:auto; flex:1; }
+  .column-body.drag-over { background:#dfe7ee; }
+
+  .card {
+    background:#fff; border-radius:6px; padding:12px; margin-bottom:10px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.12); cursor:grab; border-left:4px solid var(--stage-color, #3498db);
+  }
+  .card:active { cursor:grabbing; }
+  .card-name { font-weight:bold; color:#2c3e50; font-size:0.95em; margin-bottom:4px; }
+  .card-sub { font-size:0.8em; color:#7f8c8d; margin-bottom:6px; }
+  .card-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+  .tag {
+    font-size:0.7em; padding:2px 7px; border-radius:10px; background:#ecf0f1; color:#2c3e50;
+  }
+  .tag.temp-Caliente { background:#e74c3c; color:#fff; }
+  .tag.temp-Tibio { background:#f1c40f; color:#2c3e50; }
+  .tag.temp-Frio { background:#95a5a6; color:#fff; }
+  .card-msg {
+    font-size:0.8em; color:#576574; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .card-time { font-size:0.7em; color:#95a5a6; margin-top:6px; }
+
+  .empty-col { text-align:center; color:#b2bec3; font-size:0.8em; padding:20px 0; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">📋 Loop Inmobiliaria — Pipeline</div>
+    <div class="summary" id="summary">Loading…</div>
+    <a href="/dashboard">💬 Open chat dashboard</a>
+  </div>
+
+  <div class="board" id="board"></div>
+
+<script>
+const STAGE_COLORS = {
+  NUEVO: "#95a5a6", CALIFICANDO: "#3498db", CALIENTE: "#e74c3c",
+  CONTACTADO: "#f39c12", VISITA: "#9b59b6", NEGOCIACION: "#16a085", CERRADO: "#27ae60",
+};
+let stages = [];
+let leadsByPhone = {};
+let draggedPhone = null;
+
+async function load() {
+  const r = await (await fetch('/api/pipeline')).json();
+  if (!r.success) {
+    document.getElementById('board').innerHTML = `<p style="padding:20px;color:#e74c3c;">Error loading pipeline: ${r.error}</p>`;
+    return;
+  }
+  stages = r.stages;
+  leadsByPhone = {};
+  r.data.forEach(l => leadsByPhone[l.phone] = l);
+  render(r.data);
+}
+
+function render(leads) {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  const hot = leads.filter(l => l.temperature === 'Caliente').length;
+  document.getElementById('summary').textContent = `${leads.length} leads — ${hot} caliente`;
+
+  stages.forEach(stage => {
+    const col = document.createElement('div');
+    col.className = 'column';
+    col.style.setProperty('--stage-color', STAGE_COLORS[stage] || '#3498db');
+
+    const stageLeads = leads.filter(l => l.stage === stage);
+    col.innerHTML = `
+      <div class="column-header">
+        <span>${stage}</span>
+        <span class="column-count">${stageLeads.length}</span>
+      </div>
+      <div class="column-body" data-stage="${stage}"></div>`;
+
+    const body = col.querySelector('.column-body');
+    body.addEventListener('dragover', e => { e.preventDefault(); body.classList.add('drag-over'); });
+    body.addEventListener('dragleave', () => body.classList.remove('drag-over'));
+    body.addEventListener('drop', e => onDrop(e, stage, body));
+
+    if (stageLeads.length === 0) {
+      body.innerHTML = '<div class="empty-col">No leads</div>';
+    } else {
+      stageLeads.forEach(l => body.appendChild(makeCard(l, stage)));
+    }
+    board.appendChild(col);
+  });
+}
+
+function makeCard(l, stage) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.draggable = true;
+  card.style.setProperty('--stage-color', STAGE_COLORS[stage] || '#3498db');
+  card.dataset.phone = l.phone;
+
+  const time = l.updated_at ? new Date(l.updated_at).toLocaleString() : '';
+  card.innerHTML = `
+    <div class="card-name">${l.name || l.phone}</div>
+    <div class="card-sub">${l.channel || 'WhatsApp'} ${l.property_id ? '· prop #' + l.property_id : ''}</div>
+    <div class="card-tags">
+      ${l.temperature ? `<span class="tag temp-${l.temperature}">${l.temperature}</span>` : ''}
+      ${l.zone ? `<span class="tag">${l.zone}</span>` : ''}
+      ${l.budget ? `<span class="tag">$${l.budget}</span>` : ''}
+    </div>
+    <div class="card-msg">${l.last_message || ''}</div>
+    <div class="card-time">${time}</div>`;
+
+  card.addEventListener('dragstart', () => { draggedPhone = l.phone; card.style.opacity = '0.5'; });
+  card.addEventListener('dragend', () => { card.style.opacity = '1'; });
+  return card;
+}
+
+async function onDrop(e, newStage, body) {
+  e.preventDefault();
+  body.classList.remove('drag-over');
+  if (!draggedPhone) return;
+  const lead = leadsByPhone[draggedPhone];
+  if (!lead || lead.stage === newStage) return;
+
+  lead.stage = newStage; // optimistic update
+  render(Object.values(leadsByPhone));
+
+  try {
+    const r = await (await fetch(`/api/pipeline/${draggedPhone}/stage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: newStage }),
+    })).json();
+    if (!r.success) { alert('Could not save stage: ' + r.error); load(); }
+  } catch (err) {
+    alert('Network error saving stage');
+    load();
+  }
+}
+
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>
