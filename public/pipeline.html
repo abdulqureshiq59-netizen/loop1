@@ -68,6 +68,17 @@
   <div class="board" id="board"></div>
 
 <script>
+// Display-only translation layer. The actual stage/temperature values
+// stored in the database and sent to the API stay in Spanish (NUEVO,
+// Caliente, etc.) — only what's shown on screen here is English. If this
+// needs to go back to Spanish for the client later, just clear these two
+// maps (or set them to identity) — nothing else needs to change.
+const STAGE_LABELS = {
+  NUEVO: "NEW", CALIFICANDO: "QUALIFYING", CALIENTE: "HOT",
+  CONTACTADO: "CONTACTED", VISITA: "VISIT", NEGOCIACION: "NEGOTIATION", CERRADO: "CLOSED",
+};
+const TEMP_LABELS = { Caliente: "Hot", Tibio: "Warm", Frio: "Cold" };
+
 const STAGE_COLORS = {
   NUEVO: "#95a5a6", CALIFICANDO: "#3498db", CALIENTE: "#e74c3c",
   CONTACTADO: "#f39c12", VISITA: "#9b59b6", NEGOCIACION: "#16a085", CERRADO: "#27ae60",
@@ -92,7 +103,7 @@ function render(leads) {
   const board = document.getElementById('board');
   board.innerHTML = '';
   const hot = leads.filter(l => l.temperature === 'Caliente').length;
-  document.getElementById('summary').textContent = `${leads.length} leads — ${hot} caliente`;
+  document.getElementById('summary').textContent = `${leads.length} leads — ${hot} hot`;
 
   stages.forEach(stage => {
     const col = document.createElement('div');
@@ -102,7 +113,7 @@ function render(leads) {
     const stageLeads = leads.filter(l => l.stage === stage);
     col.innerHTML = `
       <div class="column-header">
-        <span>${stage}</span>
+        <span>${STAGE_LABELS[stage] || stage}</span>
         <span class="column-count">${stageLeads.length}</span>
       </div>
       <div class="column-body" data-stage="${stage}"></div>`;
@@ -133,7 +144,7 @@ function makeCard(l, stage) {
     <div class="card-name">${l.name || l.phone}</div>
     <div class="card-sub">${l.channel || 'WhatsApp'} ${l.property_id ? '· prop #' + l.property_id : ''}</div>
     <div class="card-tags">
-      ${l.temperature ? `<span class="tag temp-${l.temperature}">${l.temperature}</span>` : ''}
+      ${l.temperature ? `<span class="tag temp-${l.temperature}">${TEMP_LABELS[l.temperature] || l.temperature}</span>` : ''}
       ${l.zone ? `<span class="tag">${l.zone}</span>` : ''}
       ${l.budget ? `<span class="tag">$${l.budget}</span>` : ''}
     </div>
