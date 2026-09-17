@@ -100,4 +100,4 @@ async function getAIReply(from, userText, property = null) {
   }
 }
 
-module.exports = { getAIReply };
+module.exports = { getAIReply, LANGUAGE };
