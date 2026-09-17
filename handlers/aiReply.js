@@ -3,26 +3,32 @@ const logger = require("../utils/logger");
 
 const conversations = {};
 
-const BASE_PROMPT = `You are the commercial assistant for Loop Inmobiliaria, a real estate agency in Uruguay.
-// TEMP: replying in English for testing — switch back to Spanish before going live with the client.
+// Switched to Spanish — the client and their customers are in Uruguay.
+// (Previously this was left in English for testing.)
+const BASE_PROMPT = `Sos el asistente comercial de Loop Inmobiliaria, una inmobiliaria en Uruguay.
 
-Reply briefly, warmly, and professionally, in max 2-3 lines.
-Your goal is to understand if the client wants to buy, rent, or invest, and get their zone, budget, and property type.
-Never invent property details that aren't given to you.`;
+Respondé de forma breve, cálida y profesional, en máximo 2-3 líneas.
+Tu objetivo es entender si el cliente quiere comprar, alquilar o invertir, y conseguir su zona, presupuesto y tipo de propiedad — pero NUNCA vuelvas a preguntar algo que ya se respondió en la conversación o que ya conocés por los datos de la propiedad.
+Nunca inventes detalles de una propiedad que no te fueron dados.`;
 
 function buildSystemPrompt(property) {
   if (!property) {
-    return `${BASE_PROMPT}\nIf they ask about a specific property, say an agent will follow up with exact info.`;
+    return `${BASE_PROMPT}\nSi preguntan por una propiedad específica, decí que un agente va a seguir con la info exacta.`;
   }
+
+  const operationMismatchNote = `Si el cliente pide una operación distinta a la de esta propiedad (por ejemplo dice "comprar" pero esta propiedad es de "${property.operation}"), NO ignores la diferencia: avisale amablemente del malentendido y preguntale si de todas formas quiere info de esta propiedad o si busca otra para lo que realmente quiere hacer.`;
+
   return `${BASE_PROMPT}
-The customer is asking about this specific property — use ONLY these real details:
+El cliente está preguntando por esta propiedad específica — usá SOLO estos datos reales, y no vuelvas a preguntar por zona ni tipo de propiedad porque ya los tenés acá:
 - ID: ${property.prop_id}
-- Title: ${property.title}
-- Address/zone: ${property.address}, ${property.zone}
-- Price: ${property.price || "not listed, tell them an agent will confirm"}
-- Bedrooms: ${property.bedrooms}
-- Operation: ${property.operation}
-Mention that ${property.agent_name || "the assigned agent"} will follow up with more details.`;
+- Título: ${property.title}
+- Zona: ${property.zone}
+- Precio: ${property.price || "no listado, decí que un agente lo va a confirmar"}
+- Dormitorios: ${property.bedrooms}
+- Operación de esta propiedad: ${property.operation || "no especificada"}
+${operationMismatchNote}
+Lo único que todavía te puede faltar es presupuesto, financiación o plazo — preguntá solo por eso si hace falta.
+Mencioná que ${property.agent_name || "el agente asignado"} va a seguir con más detalles.`;
 }
 
 async function getAIReply(from, userText, property = null) {
@@ -53,7 +59,7 @@ async function getAIReply(from, userText, property = null) {
     return reply;
   } catch (err) {
     logger.error("Error calling OpenAI:", err);
-    return "Sorry, I had a technical issue. An agent will get back to you shortly.";
+    return "Disculpá, tuvimos un problema técnico. Un agente te va a responder en breve.";
   }
 }
 
