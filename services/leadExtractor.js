@@ -4,7 +4,7 @@ const logger = require('../utils/logger');
 const EXTRACTION_PROMPT = `Extract real estate lead info from this conversation. Reply with ONLY valid JSON, no other text, in exactly this shape:
 {
   "name": string or null,
-  "operation": "compra" | "alquiler" | "inversion" | null,
+  "operation": "compra" | "alquiler" | "inversion" | "venta" | null,
   "type": string or null,
   "zone": string or null,
   "bedrooms": number or null,
@@ -13,6 +13,7 @@ const EXTRACTION_PROMPT = `Extract real estate lead info from this conversation.
   "timeline": string or null,
   "temperature": "Caliente" | "Tibio" | "Frio"
 }
+If operation is "venta" (the customer wants to sell their own property, not buy/rent/invest), still use the "budget" field for the expected sale price they mention, and "zone" for the property's location.
 Temperature rules: "Caliente" if budget AND zone AND operation are all known. "Tibio" if at least one concrete detail is known. "Frio" if it's just a greeting with no real info.
 Only fill fields you're confident about from what was actually said — never guess, use null instead.`;
 
