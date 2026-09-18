@@ -40,9 +40,16 @@ async function ensureTable() {
         updated_at TIMESTAMPTZ DEFAULT now()
       );
     `);
-    // In case this table already existed from before the mode column existed.
+    // In case this table already existed from before these columns existed.
     await initPromise;
     await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'ai';`);
+    // Client's required qualification flow (2026-09-19) also collects the
+    // property's bathrooms/features and the customer's own address/postcode
+    // before handing off — none of these had a column yet.
+    await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS bathrooms TEXT DEFAULT '';`);
+    await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS features TEXT DEFAULT '';`);
+    await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS address TEXT DEFAULT '';`);
+    await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS postcode TEXT DEFAULT '';`);
   }
   return initPromise;
 }
@@ -68,8 +75,8 @@ async function upsertLead(phone, leadData) {
     const nextStage = computeAutoStage(currentStage, leadData);
 
     await pool.query(
-      `INSERT INTO leads (phone, name, channel, operation, type, zone, bedrooms, budget, financing, timeline, temperature, property_id, agent_name, stage, last_message, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now())
+      `INSERT INTO leads (phone, name, channel, operation, type, zone, bedrooms, bathrooms, budget, financing, timeline, features, address, postcode, temperature, property_id, agent_name, stage, last_message, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19, now())
        ON CONFLICT (phone) DO UPDATE SET
          name = COALESCE(NULLIF(EXCLUDED.name, ''), leads.name),
          channel = COALESCE(NULLIF(EXCLUDED.channel, ''), leads.channel),
@@ -77,9 +84,13 @@ async function upsertLead(phone, leadData) {
          type = COALESCE(NULLIF(EXCLUDED.type, ''), leads.type),
          zone = COALESCE(NULLIF(EXCLUDED.zone, ''), leads.zone),
          bedrooms = COALESCE(NULLIF(EXCLUDED.bedrooms, ''), leads.bedrooms),
+         bathrooms = COALESCE(NULLIF(EXCLUDED.bathrooms, ''), leads.bathrooms),
          budget = COALESCE(NULLIF(EXCLUDED.budget, ''), leads.budget),
          financing = COALESCE(NULLIF(EXCLUDED.financing, ''), leads.financing),
          timeline = COALESCE(NULLIF(EXCLUDED.timeline, ''), leads.timeline),
+         features = COALESCE(NULLIF(EXCLUDED.features, ''), leads.features),
+         address = COALESCE(NULLIF(EXCLUDED.address, ''), leads.address),
+         postcode = COALESCE(NULLIF(EXCLUDED.postcode, ''), leads.postcode),
          temperature = COALESCE(NULLIF(EXCLUDED.temperature, ''), leads.temperature),
          property_id = COALESCE(NULLIF(EXCLUDED.property_id, ''), leads.property_id),
          agent_name = COALESCE(NULLIF(EXCLUDED.agent_name, ''), leads.agent_name),
@@ -90,7 +101,8 @@ async function upsertLead(phone, leadData) {
         phone,
         leadData.name || '', leadData.channel || '', leadData.operation || '',
         leadData.type || '', leadData.zone || '', String(leadData.bedrooms || ''),
-        String(leadData.budget || ''), leadData.financing || '', leadData.timeline || '',
+        String(leadData.bathrooms || ''), String(leadData.budget || ''), leadData.financing || '',
+        leadData.timeline || '', leadData.features || '', leadData.address || '', leadData.postcode || '',
         leadData.temperature || '', leadData.property_id || '', leadData.agent_name || '',
         nextStage, leadData.last_message || '',
       ]
