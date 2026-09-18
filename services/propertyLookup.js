@@ -13,26 +13,60 @@ const PAGE_LIMIT = 100;
 let cache = { properties: null, projects: null, fetchedAt: 0 };
 const CACHE_MS = 5 * 60 * 1000;
 
-// NOTE: field names guessed from the spec doc (section 4) and Facundo's one
-// confirmed example (id_propiedad/titulo). Verify against a real response
-// and adjust the right-hand `raw.xxx` keys if they don't match.
+// Field names below were verified against a real /propiedades response
+// (property #511) on 2026-09-19 — the earlier guessed names (raw.precio,
+// raw.baños/banos, raw.m2, raw.link, raw.agente) never matched anything,
+// which is why price/bathrooms/area/link/agent always came back empty.
+// NAI keeps sale and rental price as two entirely separate pairs of fields
+// (precio_venta/moneda_venta vs precio_alquiler/moneda_alquiler) instead of
+// one flat precio/moneda — a listing can have either or both set.
+function pickPrice(raw) {
+  const hasVenta = raw.en_venta === 'Si' && raw.precio_venta;
+  const hasAlquiler = raw.en_alquiler === 'Si' && raw.precio_alquiler;
+  if (hasVenta) return { price: raw.precio_venta, currency: raw.moneda_venta || '' };
+  if (hasAlquiler) return { price: raw.precio_alquiler, currency: raw.moneda_alquiler || '' };
+  // Fallback for any endpoint (e.g. proyectos) that might still use a flat
+  // precio/moneda pair instead of the venta/alquiler split.
+  if (raw.precio) return { price: raw.precio, currency: raw.moneda || '' };
+  return { price: null, currency: '' };
+}
+
+function pickOperation(raw) {
+  const venta = raw.en_venta === 'Si';
+  const alquiler = raw.en_alquiler === 'Si';
+  if (venta && alquiler) return 'Venta y Alquiler';
+  if (venta) return 'Venta';
+  if (alquiler) return 'Alquiler';
+  return raw.operacion || '';
+}
+
+function formatPrice(price, currency) {
+  if (!price) return null;
+  const num = Number(price);
+  const formatted = Number.isFinite(num) ? num.toLocaleString('es-UY') : price;
+  return currency ? `${currency} ${formatted}` : String(formatted);
+}
+
 function normalizeProperty(raw, isProject) {
+  const { price, currency } = pickPrice(raw);
   return {
     prop_id: isProject ? raw.id_proyecto : raw.id_propiedad,
     title: raw.titulo,
-    zone: raw.zona || '',
-    price: raw.precio ?? null,
+    zone: raw.zona || raw.ciudad || raw.departamento || '',
+    price: price || null,
+    price_display: formatPrice(price, currency),
+    currency,
     type: raw.tipo || '',
     bedrooms: raw.dormitorios ?? null,
-    bathrooms: raw.baños ?? raw.banos ?? null,
-    area_m2: raw.m2 ?? null,
+    bathrooms: raw.banios ?? raw.baños ?? raw.banos ?? null,
+    area_m2: raw.superficie_total || raw.m2 || null,
     features: raw.caracteristicas || '',
     description: raw.descripcion || '',
-    link: raw.link || '',
-    reference: raw.referencia || '',
-    status: raw.estado || '',
-    operation: raw.operacion || '',
-    agent_name: raw.agente || raw.responsable || '',
+    link: raw.url || raw.link || '',
+    reference: raw.referencia || String(raw.id_propiedad || raw.id_proyecto || ''),
+    status: raw.estado || (raw.alquilada === 'Si' ? 'Alquilada' : ''),
+    operation: pickOperation(raw),
+    agent_name: (raw.vendedor && raw.vendedor.contact) || raw.agente || raw.responsable || '',
     is_project: !!isProject,
     _raw: raw,
   };
