@@ -8,12 +8,18 @@ const EXTRACTION_PROMPT = `Extract real estate lead info from this conversation.
   "type": string or null,
   "zone": string or null,
   "bedrooms": number or null,
+  "bathrooms": number or null,
   "budget": number or null,
   "financing": string or null,
   "timeline": string or null,
+  "features": string or null,
+  "address": string or null,
+  "postcode": string or null,
   "temperature": "Caliente" | "Tibio" | "Frio"
 }
 If operation is "venta" (the customer wants to sell their own property, not buy/rent/invest), still use the "budget" field for the expected sale price they mention, and "zone" for the property's location.
+"features" is any specific area, feature, or extra detail about the property the customer mentioned (e.g. "tiene patio", "cerca de la playa", "piso alto") — free text, not a fixed list.
+"address" and "postcode" are the customer's own personal address/postcode (for follow-up), not the property's.
 Temperature rules: "Caliente" if budget AND zone AND operation are all known. "Tibio" if at least one concrete detail is known. "Frio" if it's just a greeting with no real info.
 Only fill fields you're confident about from what was actually said — never guess, use null instead.`;
 
