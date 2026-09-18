@@ -1,25 +1,24 @@
 // services/propertyLookup.js
-// Property data now comes from the NAI API (Sodio) instead of scraping or
-// Google Sheets — see api docs from Facundo (app.nai.com.uy).
+// Property AND project data from the NAI API (Sodio) — the client's own
+// email listed two separate GET endpoints: /propiedades and /proyectos.
+// Previously only /propiedades was fetched, so a "proyecto/NN" link from a
+// customer never matched anything and fell through to the generic fallback.
 const axios = require('axios');
 const logger = require('../utils/logger');
 
 const NAI_API_BASE = process.env.NAI_API_BASE || 'https://app.nai.com.uy/api';
 const NAI_API_KEY = process.env.NAI_API_KEY;
-const PAGE_LIMIT = 100; // NAI's stated max_limit per page
+const PAGE_LIMIT = 100;
 
-let cache = { data: null, fetchedAt: 0 };
-const CACHE_MS = 5 * 60 * 1000; // 5 min — avoid hitting NAI on every message
+let cache = { properties: null, projects: null, fetchedAt: 0 };
+const CACHE_MS = 5 * 60 * 1000;
 
-// NOTE: only "id_propiedad" and "titulo" were confirmed in Facundo's example
-// response. The other field names below (precio/zona/dormitorios/etc.) are
-// my best guess based on section 4 of the spec ("precio, tipo, zona,
-// dormitorios, baños, m², características, descripción, link, referencia y
-// estado"). Log a real /propiedades response once you have the key working
-// and adjust the keys on the left of each line below if they don't match.
-function normalizeProperty(raw) {
+// NOTE: field names guessed from the spec doc (section 4) and Facundo's one
+// confirmed example (id_propiedad/titulo). Verify against a real response
+// and adjust the right-hand `raw.xxx` keys if they don't match.
+function normalizeProperty(raw, isProject) {
   return {
-    prop_id: raw.id_propiedad,
+    prop_id: isProject ? raw.id_proyecto : raw.id_propiedad,
     title: raw.titulo,
     zone: raw.zona || '',
     price: raw.precio ?? null,
@@ -33,69 +32,90 @@ function normalizeProperty(raw) {
     reference: raw.referencia || '',
     status: raw.estado || '',
     operation: raw.operacion || '',
-    // NAI's docs don't mention an assigned-agent field — spec section 6 needs
-    // "cada propiedad debe tener un agente/responsable asociado", so confirm
-    // with the client whether that lives in this API or has to be mapped
-    // separately (e.g. a lookup table you maintain).
     agent_name: raw.agente || raw.responsable || '',
-    _raw: raw, // keep the untouched original in case other fields are needed later
+    is_project: !!isProject,
+    _raw: raw,
   };
 }
 
-async function fetchAllProperties() {
+async function fetchAll(endpoint, isProject) {
   if (!NAI_API_KEY) {
-    logger.error('NAI_API_KEY is not set — cannot fetch properties from NAI API');
+    logger.error('NAI_API_KEY is not set — cannot fetch from NAI API');
     return null;
   }
-
   let all = [];
   let offset = 0;
   let hasMore = true;
-
   try {
     while (hasMore) {
-      const res = await axios.get(`${NAI_API_BASE}/propiedades`, {
+      const res = await axios.get(`${NAI_API_BASE}/${endpoint}`, {
         params: { key: NAI_API_KEY, limit: PAGE_LIMIT, offset },
       });
-
       const body = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
       const items = body.items || [];
-      all = all.concat(items.map(normalizeProperty));
-
+      all = all.concat(items.map(item => normalizeProperty(item, isProject)));
       const pag = body.pagination;
-      if (!pag) break; // response without pagination info -> treat as single page
+      if (!pag) break;
       hasMore = !!pag.has_more;
       offset += PAGE_LIMIT;
     }
-    logger.info(`Fetched ${all.length} properties from NAI API`);
+    logger.info(`Fetched ${all.length} ${endpoint} from NAI API`);
     return all;
   } catch (err) {
-    logger.error('Error fetching properties from NAI API:', err.response?.data || err.message);
+    logger.error(`Error fetching ${endpoint} from NAI API:`, err.response?.data || err.message);
     return null;
   }
 }
 
 async function getAllProperties() {
   const now = Date.now();
-  if (cache.data && (now - cache.fetchedAt) < CACHE_MS) return cache.data;
-
-  const fresh = await fetchAllProperties();
+  if (cache.properties && (now - cache.fetchedAt) < CACHE_MS) return cache.properties;
+  const fresh = await fetchAll('propiedades', false);
   if (fresh) {
-    cache = { data: fresh, fetchedAt: now };
+    cache.properties = fresh;
+    cache.fetchedAt = now;
     return fresh;
   }
-  // NAI request failed — serve the last good cache rather than an empty list
-  return cache.data || [];
+  return cache.properties || [];
 }
 
+async function getAllProjects() {
+  const now = Date.now();
+  if (cache.projects && (now - cache.fetchedAt) < CACHE_MS) return cache.projects;
+  const fresh = await fetchAll('proyectos', true);
+  if (fresh) {
+    cache.projects = fresh;
+    cache.fetchedAt = now;
+    return fresh;
+  }
+  return cache.projects || [];
+}
+
+// Recognizes both /propiedad/NN and /proyecto/NN links (and bare
+// "propiedad #NN" / "proyecto #NN" mentions), returning which collection to
+// search so the right NAI endpoint gets used.
 function extractPropertyId(text) {
-  const m = text.match(/loopinmobiliaria\.uy\/propiedad\/(\d+)/i) || text.match(/propiedad\s*#?\s*(\d+)/i);
-  return m ? m[1] : null;
+  const propMatch = text.match(/loopinmobiliaria\.uy\/propiedad\/(\d+)/i) || text.match(/propiedad\s*#?\s*(\d+)/i);
+  if (propMatch) return propMatch[1];
+  const projMatch = text.match(/loopinmobiliaria\.uy\/proyecto\/(\d+)/i) || text.match(/proyecto\s*#?\s*(\d+)/i);
+  if (projMatch) return projMatch[1];
+  return null;
 }
 
-async function findPropertyById(id) {
-  const all = await getAllProperties();
-  return all.find(p => String(p.prop_id) === String(id)) || null;
+function isProjectLink(text) {
+  return /proyecto/i.test(text) && !/propiedad/i.test(text);
 }
 
-module.exports = { getAllProperties, extractPropertyId, findPropertyById };
+async function findPropertyById(id, text = '') {
+  // Search whichever collection the link pointed at first, then fall back
+  // to the other — covers a bare "#27" mention with no explicit word.
+  const preferProject = isProjectLink(text);
+  const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
+  const first = preferProject ? projects : properties;
+  const second = preferProject ? properties : projects;
+  return first.find(p => String(p.prop_id) === String(id))
+      || second.find(p => String(p.prop_id) === String(id))
+      || null;
+}
+
+module.exports = { getAllProperties, getAllProjects, extractPropertyId, findPropertyById };
