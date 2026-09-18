@@ -5,6 +5,7 @@ const conversationState = require("../services/conversationState");
 const { extractPropertyId, findPropertyById } = require("../services/propertyLookup");
 const { extractLeadInfo } = require("../services/leadExtractor");
 const { upsertLead } = require("../services/leadSync");
+const leadsDb = require("../services/leadsDb");
 const logger = require("../utils/logger");
 
 const HANDOFF_MESSAGE = LANGUAGE === "en"
@@ -19,7 +20,12 @@ async function handleIncomingMessage(message, from) {
 
     conversationState.addMessage(from, "customer", text);
 
-    if (conversationState.getMode(from) === "human") {
+    // Authoritative check straight from the database (see leadsDb.getMode
+    // comment) — avoids a race right after a Render cold start where the
+    // in-memory cache hasn't finished hydrating yet and the AI would
+    // otherwise incorrectly reply to a human-controlled conversation.
+    const currentMode = await leadsDb.getMode(from);
+    if (currentMode === "human") {
       logger.info(`Mode is HUMAN for ${from} — AI stays silent`);
       return;
     }
@@ -27,15 +33,14 @@ async function handleIncomingMessage(message, from) {
     if (type === "text") {
       const propId = extractPropertyId(text);
       if (propId) {
-        const property = await findPropertyById(propId);
+        const property = await findPropertyById(propId, text);
         if (property) conversationState.setProperty(from, property);
       }
     }
 
     // Spec #8/#11: auto-detect complaints, requests for a human, price
     // negotiation, or high buying intent — hand off instead of letting the
-    // AI keep answering. Runs only for text messages, before the normal
-    // AI reply is generated.
+    // AI keep answering.
     if (type === "text") {
       const handoffResult = await checkHandoff(text);
       if (handoffResult.handoff) {
@@ -43,9 +48,6 @@ async function handleIncomingMessage(message, from) {
         conversationState.addMessage(from, "ai", HANDOFF_MESSAGE);
         await sendTextMessage(from, HANDOFF_MESSAGE);
         conversationState.setMode(from, "human");
-        // Still qualify the lead in the background even though we're
-        // handing off — the info gathered so far is still useful to the
-        // agent picking this up.
         qualifyLeadInBackground(from, text);
         return;
       }
@@ -66,10 +68,6 @@ async function handleIncomingMessage(message, from) {
   }
 }
 
-// Qualifies the lead in the background — doesn't delay the reply. Must
-// never throw uncaught: an unhandled promise rejection crashes the whole
-// Node process (this was the exact cause of an earlier bug), so this
-// always ends in .catch().
 function qualifyLeadInBackground(from, text) {
   const conv = conversationState.getConversation(from);
   extractLeadInfo(conv.messages)
