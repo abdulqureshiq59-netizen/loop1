@@ -2,8 +2,9 @@ const { getAIReply, LANGUAGE } = require("./aiReply");
 const { checkHandoff } = require("../services/handoffDetector");
 const { sendTextMessage } = require("../utils/whatsappAPI");
 const conversationState = require("../services/conversationState");
-const { extractPropertyId, findPropertyById } = require("../services/propertyLookup");
+const { extractPropertyId, findPropertyById, getAllProperties, getAllProjects } = require("../services/propertyLookup");
 const { extractLeadInfo } = require("../services/leadExtractor");
+const { matchProperties } = require("../services/propertyMatcher");
 const { upsertLead } = require("../services/leadSync");
 const leadsDb = require("../services/leadsDb");
 const logger = require("../utils/logger");
@@ -71,11 +72,11 @@ async function handleIncomingMessage(message, from) {
 function qualifyLeadInBackground(from, text) {
   const conv = conversationState.getConversation(from);
   extractLeadInfo(conv.messages)
-    .then(lead => {
+    .then(async lead => {
       if (!lead) return;
       conversationState.setLead(from, lead);
       const property = conversationState.getProperty(from);
-      return upsertLead(from, {
+      await upsertLead(from, {
         name: lead.name || "", channel: "WhatsApp",
         operation: lead.operation || "", type: lead.type || "",
         zone: lead.zone || "", bedrooms: lead.bedrooms || "",
@@ -87,10 +88,58 @@ function qualifyLeadInBackground(from, text) {
         agent_name: property ? property.agent_name : "",
         last_message: text,
       });
+      await maybeSuggestProperties(from, lead);
     })
     .catch(err => {
       logger.error(`Background lead qualification failed for ${from}:`, err.message);
     });
+}
+
+// Spec #4/#5: once we know enough about what the customer (buyer/renter/
+// investor — not a seller, who isn't looking for a property) wants, search
+// the real NAI catalog and actually send them matches, instead of the AI
+// just chatting about wanting to help and never looking anything up. Sent
+// at most once per conversation (conversationState.propertiesSuggested)
+// so this doesn't re-fire and resend the same list on every later message.
+async function maybeSuggestProperties(from, lead) {
+  try {
+    if (!lead.operation || lead.operation === "venta") return; // sellers aren't looking for a property
+    if (!lead.zone || !lead.type || !lead.budget) return; // not enough to search yet
+    if (conversationState.getPropertiesSuggested(from)) return;
+
+    const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
+    const matches = await matchProperties(
+      { zone: lead.zone, budget: lead.budget, type: lead.type, bedrooms: lead.bedrooms },
+      [...properties, ...projects]
+    );
+    if (!matches.length) return;
+
+    const top = matches.slice(0, 3);
+    const lines = top.map((p, i) => {
+      const price = p.price_display || (LANGUAGE === "en" ? "price on request" : "precio a consultar");
+      return `${i + 1}. ${p.title} — ${price} (${p.link})`;
+    });
+    const intro = LANGUAGE === "en"
+      ? "Here are a few properties that match what you're looking for:"
+      : "¡Encontramos estas propiedades que podrían interesarte!";
+    const outro = LANGUAGE === "en"
+      ? `An agent (${top[0].agent_name || "the assigned agent"}) will follow up with more details.`
+      : `Un agente (${top[0].agent_name || "el agente asignado"}) va a seguir con más detalles.`;
+    const message = `${intro}\n\n${lines.join("\n")}\n\n${outro}`;
+
+    conversationState.addMessage(from, "ai", message);
+    await sendTextMessage(from, message);
+    conversationState.setPropertiesSuggested(from, true);
+
+    // Record which property/agent this lead got matched to, same as the
+    // manual link-lookup path does.
+    await upsertLead(from, {
+      property_id: top[0].prop_id,
+      agent_name: top[0].agent_name || "",
+    });
+  } catch (err) {
+    logger.error(`Property matching failed for ${from}:`, err.message);
+  }
 }
 
 module.exports = { handleIncomingMessage };
