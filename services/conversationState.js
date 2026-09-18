@@ -5,11 +5,19 @@ const logger = require('../utils/logger');
 const state = {}; // { [phone]: { mode: 'ai'|'human', messages: [], property: null, lead: null } }
 
 function getOrCreate(phone) {
-  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null };
+  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null, propertiesSuggested: false };
   return state[phone];
 }
 function setLead(phone, lead) { getOrCreate(phone).lead = lead; }
 function getLead(phone) { return getOrCreate(phone).lead; }
+
+// Tracks whether we've already sent this conversation a batch of matched
+// property suggestions, so qualifyLeadInBackground (which re-runs on every
+// message) doesn't spam the same suggestions repeatedly. In-memory only —
+// same limitation as `property` below (a redeploy mid-conversation could
+// send it once more), acceptable for this volume.
+function getPropertiesSuggested(phone) { return getOrCreate(phone).propertiesSuggested; }
+function setPropertiesSuggested(phone, value) { getOrCreate(phone).propertiesSuggested = value; }
 
 function addMessage(phone, sender, text) {
   const c = getOrCreate(phone);
@@ -65,4 +73,4 @@ function getConversation(phone) { return getOrCreate(phone); }
   }
 })();
 
-module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation };
+module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, getPropertiesSuggested, setPropertiesSuggested };
