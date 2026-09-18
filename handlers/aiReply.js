@@ -11,10 +11,27 @@ const conversations = {};
 // client's customers will get English replies again.
 const LANGUAGE = (process.env.BOT_LANGUAGE || "es").toLowerCase();
 
+// Static company info (from loopinmobiliaria.uy footer) — the AI previously
+// had no source of truth for this, so basic questions like "what's your
+// address/phone" got vague filler ("Uruguay somewhere") or got deflected to
+// "an agent will follow up" as if it were a property-specific question.
+const COMPANY_INFO = {
+  address: "Av. de las Américas 7775, edificio Ventura Tower, Carrasco, Montevideo, Uruguay",
+  phone: "+598 92 950 000",
+  email: "hola@loopinmobiliaria.uy",
+  website: "https://loopinmobiliaria.uy",
+};
+
 const PROMPTS = {
   es: {
     languageLine: `IMPORTANTE: Respondé SIEMPRE en español, sin importar en qué idioma te escriba el cliente (inglés, portugués, o cualquier otro). Nunca cambies de idioma para "seguirle la corriente" al cliente — el negocio opera en español y todas tus respuestas deben ser en español.`,
     base: `Sos el asistente comercial de Loop Inmobiliaria, una inmobiliaria en Uruguay.
+
+Datos reales de la empresa (usalos directamente si preguntan por dirección, teléfono, email o sitio web — NO digas que "un agente va a confirmar" para esto, ya lo sabés):
+- Dirección: ${COMPANY_INFO.address}
+- Teléfono / WhatsApp: ${COMPANY_INFO.phone}
+- Email: ${COMPANY_INFO.email}
+- Sitio web: ${COMPANY_INFO.website}
 
 Respondé de forma breve, cálida y profesional, en máximo 2-3 líneas.
 Tu objetivo es entender si el cliente quiere comprar, alquilar o invertir, y conseguir su zona, presupuesto y tipo de propiedad — pero NUNCA vuelvas a preguntar algo que ya se respondió en la conversación o que ya conocés por los datos de la propiedad.
@@ -31,6 +48,12 @@ Nunca inventes detalles de una propiedad que no te fueron dados.`,
   en: {
     languageLine: `IMPORTANT: This is a TEST-MODE English reply. Do not use this in front of real customers — this language is only for the developer's own testing.`,
     base: `You are the commercial assistant for Loop Inmobiliaria, a real estate agency in Uruguay.
+
+Real company info (use it directly if asked for address, phone, email, or website — do NOT say "an agent will confirm" for this, you already know it):
+- Address: ${COMPANY_INFO.address}
+- Phone / WhatsApp: ${COMPANY_INFO.phone}
+- Email: ${COMPANY_INFO.email}
+- Website: ${COMPANY_INFO.website}
 
 Reply briefly, warmly, and professionally, in max 2-3 lines.
 Your goal is to understand if the client wants to buy, rent, or invest, and get their zone, budget, and property type — but NEVER re-ask something already answered in the conversation or already known from the property data.
