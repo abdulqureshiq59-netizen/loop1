@@ -59,7 +59,7 @@ ${t.propertyIntro}
 - ID: ${property.prop_id}
 - ${LANGUAGE === "en" ? "Title" : "Título"}: ${property.title}
 - ${LANGUAGE === "en" ? "Zone" : "Zona"}: ${property.zone}
-- ${LANGUAGE === "en" ? "Price" : "Precio"}: ${property.price || t.priceUnlisted}
+- ${LANGUAGE === "en" ? "Price" : "Precio"}: ${property.price_display || t.priceUnlisted}
 - ${LANGUAGE === "en" ? "Bedrooms" : "Dormitorios"}: ${property.bedrooms}
 - ${LANGUAGE === "en" ? "Operation" : "Operación"}: ${property.operation || t.operationUnspecified}
 ${t.mismatch(property.operation)}
