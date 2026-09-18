@@ -141,4 +141,18 @@ async function getAllModes() {
   return res.rows;
 }
 
-module.exports = { upsertLead, getAllLeads, getLeadByPhone, updateStage, setMode, getAllModes };
+// Authoritative single-phone mode check, straight from the database. Used
+// at the top of every incoming message instead of trusting only the
+// in-memory cache — that cache is hydrated from the DB asynchronously at
+// process boot, so right after a Render cold start there's a brief window
+// where a message could arrive before hydration finishes and the AI would
+// incorrectly reply even though a human took control before the restart.
+// A DB round-trip on every message is cheap enough for this volume and
+// removes that race entirely.
+async function getMode(phone) {
+  await ensureTable();
+  const res = await pool.query('SELECT mode FROM leads WHERE phone = $1', [phone]);
+  return res.rows[0]?.mode || 'ai';
+}
+
+module.exports = { upsertLead, getAllLeads, getLeadByPhone, updateStage, setMode, getAllModes, getMode };
