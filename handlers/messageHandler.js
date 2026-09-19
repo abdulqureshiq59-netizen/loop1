@@ -136,9 +136,19 @@ function qualifyLeadInBackground(from, text) {
 // exactly when propertiesSuggested/visitScheduled do (chat handed back to
 // AI = fresh inquiry cycle) — so it re-fires correctly for a genuinely new
 // inquiry instead of going silent forever after the first one.
+//
+// Gate added 2026-09-20: "Caliente" by itself (leadExtractor.js) only needs
+// zone + budget + operation — it does NOT mean the checklist is finished.
+// Client reported getting an admin alert with just name/zone/budget/operation
+// and no contact details yet, which is too early to be useful (admin can't
+// even follow up). Now requires the same "checklist actually complete" gate
+// as maybeSuggestProperties: name + postcode present (postcode is the last
+// field the AI asks for before handing off), so the alert only fires once
+// there's enough info for the admin to act on.
 async function maybeNotifyHotLead(from, lead) {
   try {
     if (lead?.temperature !== "Caliente") return;
+    if (!lead.name || !lead.postcode) return;
     if (conversationState.getHotAlerted(from)) return;
     conversationState.setHotAlerted(from, true);
     await adminNotify.notifyHotLead(from, lead);
