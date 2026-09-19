@@ -134,6 +134,31 @@ async function updateStage(phone, stage) {
   if (res.rowCount === 0) throw new Error('Lead not found');
 }
 
+// Moves a lead forward to targetStage, but only if it isn't already at or
+// past that point in STAGE_ORDER — never moves it backward. Used for
+// "an agent just took manual control of this conversation" -> CONTACTADO,
+// so that action alone advances the pipeline instead of requiring the
+// agent to also remember to drag the card on /pipeline.
+async function bumpStageTo(phone, targetStage) {
+  await ensureTable();
+  const targetIndex = STAGE_ORDER.indexOf(targetStage);
+  if (targetIndex === -1) throw new Error(`Unknown stage: ${targetStage}`);
+
+  const existing = await pool.query('SELECT stage FROM leads WHERE phone = $1', [phone]);
+  if (existing.rows.length === 0) {
+    // No lead row yet (e.g. dashboard control taken before any message was
+    // qualified) — create one directly at the target stage.
+    await pool.query(
+      `INSERT INTO leads (phone, stage, updated_at) VALUES ($1, $2, now())
+       ON CONFLICT (phone) DO NOTHING`,
+      [phone, targetStage]
+    );
+    return;
+  }
+  const currentIndex = STAGE_ORDER.indexOf(existing.rows[0].stage);
+  if (currentIndex >= targetIndex) return; // already there or further along — don't move it backward
+  await pool.query('UPDATE leads SET stage = $1, updated_at = now() WHERE phone = $2', [targetStage, phone]);
+}
 // --- mode (AI/Human) persistence ---
 
 async function setMode(phone, mode) {
@@ -167,4 +192,4 @@ async function getMode(phone) {
   return res.rows[0]?.mode || 'ai';
 }
 
-module.exports = { upsertLead, getAllLeads, getLeadByPhone, updateStage, setMode, getAllModes, getMode };
+module.exports = { upsertLead, getAllLeads, getLeadByPhone, updateStage, bumpStageTo, setMode, getAllModes, getMode };
