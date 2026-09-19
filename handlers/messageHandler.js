@@ -4,9 +4,12 @@ const { sendTextMessage } = require("../utils/whatsappAPI");
 const conversationState = require("../services/conversationState");
 const { extractPropertyId, findPropertyById, getAllProperties, getAllProjects } = require("../services/propertyLookup");
 const { extractLeadInfo } = require("../services/leadExtractor");
+const { extractVisitInfo } = require("../services/visitExtractor");
 const { matchProperties } = require("../services/propertyMatcher");
+const { transcribeAudio } = require("../services/transcribeAudio");
 const { upsertLead } = require("../services/leadSync");
 const leadsDb = require("../services/leadsDb");
+const adminNotify = require("../services/adminNotify");
 const logger = require("../utils/logger");
 
 const HANDOFF_MESSAGE = LANGUAGE === "en"
@@ -15,9 +18,31 @@ const HANDOFF_MESSAGE = LANGUAGE === "en"
 
 async function handleIncomingMessage(message, from) {
   try {
-    const type = message.type;
-    const text = type === "text" ? message.text.body : `[${type} message]`;
-    logger.info(`Incoming from ${from} (${type}): "${text}"`);
+    let type = message.type;
+    let text;
+
+    if (type === "text") {
+      text = message.text.body;
+    } else if (type === "audio") {
+      // Voice note (2026-09-19): transcribe with Whisper and, if that
+      // succeeds, treat it exactly like a normal text message from here on
+      // — same qualification, property matching, and handoff logic. If
+      // transcription fails for any reason, fall back to the old generic
+      // behavior instead of crashing the whole message.
+      const transcribed = await transcribeAudio(message.audio?.id);
+      if (transcribed) {
+        text = transcribed;
+        type = "text";
+        logger.info(`Transcribed voice note from ${from}: "${text}"`);
+      } else {
+        text = "[audio message — could not transcribe]";
+        logger.error(`Failed to transcribe voice note from ${from}`);
+      }
+    } else {
+      text = `[${type} message]`;
+    }
+
+    logger.info(`Incoming from ${from} (${message.type}): "${text}"`);
 
     conversationState.addMessage(from, "customer", text);
 
@@ -89,10 +114,47 @@ function qualifyLeadInBackground(from, text) {
         last_message: text,
       });
       await maybeSuggestProperties(from, lead);
+      await maybeMarkVisitScheduled(from, conv.messages, lead, property);
     })
     .catch(err => {
       logger.error(`Background lead qualification failed for ${from}:`, err.message);
     });
+}
+
+// Client requirement (2026-09-19): when the customer confirms they want an
+// in-person/on-site visit AND gives a day/time, move the lead straight to
+// the VISITA pipeline stage and alert the admin — instead of relying on an
+// agent to notice this in the chat and drag the pipeline card manually.
+// Runs on every message like the other background qualification steps, but
+// is gated by conversationState.visitScheduled so it only ever fires once
+// per conversation.
+async function maybeMarkVisitScheduled(from, messages, lead, property) {
+  try {
+    if (conversationState.getVisitScheduled(from)) return;
+
+    const { visitConfirmed, visitWhen } = await extractVisitInfo(messages);
+    if (!visitConfirmed) return;
+
+    conversationState.setVisitScheduled(from, true);
+    await leadsDb.bumpStageTo(from, "VISITA");
+    logger.info(`Visit scheduled detected for ${from}${visitWhen ? ` (${visitWhen})` : ""} — moved to VISITA`);
+
+    // bumpStageTo already sends the admin alert on the CALIENTE/VISITA
+    // transition itself (services/leadsDb.js -> notifyOnStageChange), but
+    // that alert only has whatever was already in the leads row (e.g. the
+    // customer's own address, not the property's, and no visitWhen at
+    // all). Send a second, more specific alert with what this classifier
+    // actually extracted, so the admin isn't left guessing the day/time.
+    await adminNotify.notifyVisitScheduled(from, {
+      name: lead?.name || "",
+      visitWhen: visitWhen || "",
+      property: property ? `${property.title} (${property.zone})` : "",
+      link: property ? property.link : "",
+      property_id: property ? property.prop_id : (lead?.property_id || ""),
+    });
+  } catch (err) {
+    logger.error(`Visit detection failed for ${from}:`, err.message);
+  }
 }
 
 // Spec #4/#5: once we know enough about what the customer (buyer/renter/
