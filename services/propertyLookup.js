@@ -31,6 +31,15 @@ function pickPrice(raw) {
   return { price: null, currency: '' };
 }
 
+// Same split as pickPrice: NAI sometimes leaves the flat `titulo` field empty
+// (verified on property #57, which has "zona":"Pocitos" and a real title but
+// "titulo":"") with the actual text living in titulo_venta/titulo_alquiler
+// instead. Without this fallback, a matched property gets sent to the
+// customer with a blank title (e.g. "1. — UYU 475,000 (link)").
+function pickTitle(raw) {
+  return raw.titulo_venta || raw.titulo_alquiler || raw.titulo || '';
+}
+
 function pickOperation(raw) {
   const venta = raw.en_venta === 'Si';
   const alquiler = raw.en_alquiler === 'Si';
@@ -51,7 +60,7 @@ function normalizeProperty(raw, isProject) {
   const { price, currency } = pickPrice(raw);
   return {
     prop_id: isProject ? raw.id_proyecto : raw.id_propiedad,
-    title: raw.titulo,
+    title: pickTitle(raw),
     zone: raw.zona || raw.ciudad || raw.departamento || '',
     price: price || null,
     price_display: formatPrice(price, currency),
