@@ -259,6 +259,14 @@ function makeCard(l, stage) {
 
   card.addEventListener('dragstart', () => { draggedPhone = l.phone; card.style.opacity = '0.5'; });
   card.addEventListener('dragend', () => { card.style.opacity = '1'; });
+
+  // Clicking (not dragging) a card opens that customer's full chat on the
+  // dashboard. A real HTML5 drag never fires a 'click' event on its own
+  // (only a plain, no-movement press does), so this doesn't fight with
+  // the drag-and-drop above.
+  card.addEventListener('click', () => {
+    window.location.href = '/dashboard?phone=' + encodeURIComponent(l.phone);
+  });
   return card;
 }
 
