@@ -147,6 +147,16 @@ async function getLeadByPhone(phone) {
   return res.rows[0] || null;
 }
 
+// Manual stage change (pipeline drag-and-drop OR the dashboard's stage
+// dropdown) — unlike bumpStageTo, this is intentionally NOT forward-only,
+// since a human agent must be free to move a card in either direction
+// (e.g. undo a mistake, or move a dead lead back to CALIFICANDO). This is
+// the only place that can legitimately move a "frozen" (CONTACTADO+) lead
+// backward. Logged loudly (2026-09-20) precisely because it used to be
+// silent — a manual move here was indistinguishable in the Render logs
+// from the automatic qualification path, which once cost real time
+// tracking down a VISITA -> CALIENTE drop that turned out to be a manual
+// dropdown change, not a bug.
 async function updateStage(phone, stage) {
   await ensureTable();
   const existing = await pool.query('SELECT * FROM leads WHERE phone = $1', [phone]);
@@ -157,6 +167,8 @@ async function updateStage(phone, stage) {
     [stage, phone]
   );
   if (res.rowCount === 0) throw new Error('Lead not found');
+
+  logger.info(`MANUAL stage change for ${phone}: ${oldStage || 'NUEVO'} -> ${stage} (via pipeline drag or dashboard dropdown, not auto-qualification)`);
 
   notifyOnStageChange(phone, oldStage, stage, existing.rows[0] || {}).catch(err => {
     logger.error(`Failed to send admin notification for ${phone}:`, err.message);
