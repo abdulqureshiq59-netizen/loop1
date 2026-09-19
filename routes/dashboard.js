@@ -4,7 +4,32 @@ const conversationState = require('../services/conversationState');
 const messagesDb = require('../services/messagesDb');
 const leadsDb = require('../services/leadsDb');
 const { sendTextMessage } = require('../utils/whatsappAPI');
+const { getAllProperties, getAllProjects } = require('../services/propertyLookup');
+const adminNotify = require('../services/adminNotify');
 const logger = require('../utils/logger');
+
+// TEMPORARY (2026-09-19): one-off check the client asked for — how many
+// properties/projects in the live NAI catalog actually have no listed
+// price, to decide whether a "customer asked about an unpriced property"
+// admin alert is worth building. Safe to delete this route once answered;
+// it doesn't change any data, just counts and samples.
+router.get('/api/debug/price-check', async (req, res) => {
+  try {
+    const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
+    const all = [...properties, ...projects];
+    const missing = all.filter(p => !p.price_display);
+    res.json({
+      success: true,
+      total: all.length,
+      with_price: all.length - missing.length,
+      without_price: missing.length,
+      examples_without_price: missing.slice(0, 10).map(p => ({ id: p.prop_id, title: p.title, zone: p.zone, operation: p.operation, link: p.link })),
+    });
+  } catch (err) {
+    logger.error('Error in price-check debug route:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Conversation list now comes from the database (messages table), not
 // server memory — this is what survives a restart/redeploy.
@@ -84,6 +109,29 @@ router.get('/api/stats', async (req, res) => {
     });
   } catch (err) {
     logger.error('Error loading stats:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin's own WhatsApp number for HOT-lead / visit-scheduled alerts —
+// editable from the dashboard (client's request, 2026-09-19) instead of
+// being hardcoded in .env, so it can be changed without a redeploy.
+router.get('/api/settings/admin-phone', async (req, res) => {
+  try {
+    const phone = await adminNotify.getAdminPhone();
+    res.json({ success: true, phone });
+  } catch (err) {
+    logger.error('Error loading admin phone setting:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/api/settings/admin-phone', async (req, res) => {
+  try {
+    await adminNotify.setAdminPhone((req.body.phone || '').trim());
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Error saving admin phone setting:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
