@@ -385,6 +385,58 @@
   }
   .stage-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 
+  .stage-select {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.78em;
+    font-weight: 700;
+    font-family: inherit;
+    background: #eef0f4;
+    color: var(--text);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    outline: none;
+  }
+  .stage-select:focus { border-color: var(--accent); }
+
+  .admin-config {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .admin-config label {
+    color: var(--sidebar-text-dim);
+    font-size: 0.75em;
+    white-space: nowrap;
+  }
+  .admin-config input {
+    width: 140px;
+    padding: 6px 9px;
+    border: 1px solid var(--sidebar-border);
+    border-radius: var(--radius-sm);
+    background: var(--sidebar-bg-hover);
+    color: #fff;
+    font-size: 0.78em;
+    font-family: inherit;
+    outline: none;
+  }
+  .admin-config input:focus { border-color: var(--accent); }
+  .admin-config input::placeholder { color: var(--sidebar-text-dim); }
+  .admin-config button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75em;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .admin-config button:hover { background: var(--accent-strong); }
+  .admin-config .saved-tick { color: #34d399; font-size: 0.9em; opacity: 0; transition: opacity .2s; }
+  .admin-config .saved-tick.show { opacity: 1; }
+
   .empty-state {
     display: flex;
     flex-direction: column;
@@ -406,7 +458,12 @@
       <a href="/dashboard" class="active">💬 Chats</a>
       <a href="/pipeline">📋 Pipeline</a>
     </div>
-    <div class="right" id="clock"></div>
+    <div class="admin-config">
+      <label>🔔 Admin alerts:</label>
+      <input type="text" id="adminPhoneInput" placeholder="e.g. 59899xxxxxx">
+      <button onclick="saveAdminPhone()">Save</button>
+      <span class="saved-tick" id="adminPhoneSaved">✓</span>
+    </div>
   </div>
 
   <div class="container">
@@ -601,6 +658,7 @@ const STAGE_LABELS = {
   NUEVO: 'New', CALIFICANDO: 'Qualifying', CALIENTE: 'Hot',
   CONTACTADO: 'Contacted', VISITA: 'Visit', NEGOCIACION: 'Negotiation', CERRADO: 'Closed',
 };
+const STAGE_ORDER = ['NUEVO', 'CALIFICANDO', 'CALIENTE', 'CONTACTADO', 'VISITA', 'NEGOCIACION', 'CERRADO'];
 
 function field(value, formatter) {
   if (value === undefined || value === null || value === '') return '<span class="info-value empty">—</span>';
@@ -611,18 +669,25 @@ function renderLeadPanel(lead, phone) {
   const panel = document.getElementById('rightPanel');
   const badgeClass = lead ? (TEMP_MAP[lead.temperature] || 'new') : 'new';
   const badgeLabel = lead ? (TEMP_LABELS[lead.temperature] || 'NEW') : 'NEW';
-  const stageLabel = lead && lead.stage ? (STAGE_LABELS[lead.stage] || lead.stage) : 'New';
+  const currentStage = (lead && lead.stage) || 'NUEVO';
 
   const propertyLink = lead && lead.property_id
     ? `<a href="https://loopinmobiliaria.uy/propiedad/${lead.property_id}" target="_blank">#${lead.property_id} ↗</a>`
     : null;
+
+  const stageOptions = STAGE_ORDER.map(s =>
+    `<option value="${s}" ${s === currentStage ? 'selected' : ''}>${STAGE_LABELS[s]}</option>`
+  ).join('');
 
   panel.innerHTML = `
     <div class="panel-section">
       <h3>Lead Status</h3>
       <div class="info-grid">
         <div class="info-item"><span class="info-label">Temperature</span><span class="badge badge-${badgeClass}">${badgeLabel}</span></div>
-        <div class="info-item"><span class="info-label">Stage</span><span class="stage-pill"><span class="dot"></span>${stageLabel}</span></div>
+        <div class="info-item">
+          <span class="info-label">Stage</span>
+          <select class="stage-select" onchange="setStage('${phone}', this.value)">${stageOptions}</select>
+        </div>
       </div>
     </div>
 
@@ -680,6 +745,37 @@ async function setMode(mode) {
 function toggleAI() { setMode('ai'); }
 function toggleHuman() { setMode('human'); }
 
+// Manual stage override (dropdown in the right panel) — reuses the same
+// endpoint the pipeline board's drag-and-drop already calls, so a stage set
+// here shows up correctly on /pipeline too, and vice versa.
+async function setStage(phone, stage) {
+  await fetch(`/api/pipeline/${phone}/stage`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage }),
+  });
+  if (phone === selectedPhone) selectConversation(phone);
+  loadConversations();
+}
+
+// Admin WhatsApp number for HOT-lead / visit-scheduled alerts — stored in
+// the database (app_settings), editable here instead of hardcoded in .env.
+async function loadAdminPhone() {
+  try {
+    const r = await (await fetch('/api/settings/admin-phone')).json();
+    if (r.success) document.getElementById('adminPhoneInput').value = r.phone || '';
+  } catch (err) { /* non-critical — leave the field blank */ }
+}
+
+async function saveAdminPhone() {
+  const input = document.getElementById('adminPhoneInput');
+  await fetch('/api/settings/admin-phone', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: input.value.trim() }),
+  });
+  const tick = document.getElementById('adminPhoneSaved');
+  tick.classList.add('show');
+  setTimeout(() => tick.classList.remove('show'), 1800);
+}
+loadAdminPhone();
+
 async function sendMessage() {
   const input = document.getElementById('messageInput');
   if (!input.value.trim() || !selectedPhone) return;
@@ -690,12 +786,6 @@ async function sendMessage() {
   lastMessageSignature = null; // force this one refresh to actually re-render (we just added a message)
   selectConversation(selectedPhone);
 }
-
-function tickClock() {
-  document.getElementById('clock').textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-}
-tickClock();
-setInterval(tickClock, 30000);
 
 loadConversations();
 setInterval(() => {
