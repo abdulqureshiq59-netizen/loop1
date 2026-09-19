@@ -113,12 +113,38 @@ function qualifyLeadInBackground(from, text) {
         agent_name: property ? property.agent_name : "",
         last_message: text,
       });
+      await maybeNotifyHotLead(from, lead);
       await maybeSuggestProperties(from, lead);
       await maybeMarkVisitScheduled(from, conv.messages, lead, property);
     })
     .catch(err => {
       logger.error(`Background lead qualification failed for ${from}:`, err.message);
     });
+}
+
+// Client requirement (2026-09-20): admin gets a WhatsApp alert whenever a
+// lead comes in HOT — no matter the operation (buy/rent/sell/invest). This
+// used to live entirely inside leadsDb.js's notifyOnStageChange, fired only
+// when the DB `stage` column actually transitions into CALIENTE. Problem:
+// `stage` only ever moves forward (computeAutoStage takes a max() of the
+// existing and candidate index), so once a phone number has been CALIENTE
+// once, that column can never produce that transition again — a second,
+// genuinely distinct hot inquiry on the same phone (e.g. re-tested after
+// handing the chat back to AI) would never re-alert the admin, even though
+// it's a fresh lead in every practical sense. This check is independent of
+// `stage` and gated only by conversationState.hotAlerted, which resets
+// exactly when propertiesSuggested/visitScheduled do (chat handed back to
+// AI = fresh inquiry cycle) — so it re-fires correctly for a genuinely new
+// inquiry instead of going silent forever after the first one.
+async function maybeNotifyHotLead(from, lead) {
+  try {
+    if (lead?.temperature !== "Caliente") return;
+    if (conversationState.getHotAlerted(from)) return;
+    conversationState.setHotAlerted(from, true);
+    await adminNotify.notifyHotLead(from, lead);
+  } catch (err) {
+    logger.error(`Hot-lead alert failed for ${from}:`, err.message);
+  }
 }
 
 // Client requirement (2026-09-19): when the customer confirms they want an
