@@ -105,25 +105,30 @@ async function maybeSuggestProperties(from, lead) {
   try {
     if (!lead.operation || lead.operation === "venta") return; // sellers aren't looking for a property
 
-    // NOTE: `type` is intentionally NOT required here even though it used
-    // to be. leadExtractor's "Caliente" classification only requires
-    // zone + budget + operation (not type) — so a lead can be fully
-    // qualified (CALIENTE) with lead.type still null, and this guard used
-    // to silently block property matching from ever running in that case
-    // (confirmed 2026-09-19: a full buy-flow test reached CALIENTE with
-    // zone=Pocitos/budget=500000/operation=compra but type never got
-    // filled by GPT, so no suggestion was ever sent and no log line for
-    // it appeared anywhere in the Render logs).
-    if (!lead.zone || !lead.budget) {
-      logger.info(`Skipping property suggestion for ${from}: missing zone or budget (zone=${lead.zone || "null"}, budget=${lead.budget || "null"})`);
+    // `type` is intentionally NOT required (see 2026-09-19 note below), but
+    // `postcode` IS required — it's the last field in every checklist
+    // (aiReply.js), right before the AI hands off. Requiring it means the
+    // suggestion message only goes out once the whole flow is done, not
+    // mid-conversation right after bedrooms/bathrooms — which is what was
+    // happening before: the customer got the property list AND THEN the AI
+    // kept asking financing/timeline questions afterwards, because the
+    // suggestion (background, async) and the main AI reply (immediate)
+    // don't know about each other and postcode wasn't required as a gate.
+    //
+    // `type` note (2026-09-19): leadExtractor's "Caliente" classification
+    // only requires zone + budget + operation (not type) — so a lead can be
+    // fully qualified with lead.type still null, and requiring it here used
+    // to silently block property matching from ever running in that case.
+    if (!lead.zone || !lead.budget || !lead.postcode) {
+      logger.info(`Skipping property suggestion for ${from}: flow not complete yet (zone=${lead.zone || "null"}, budget=${lead.budget || "null"}, postcode=${lead.postcode || "null"})`);
       return;
     }
     if (conversationState.getPropertiesSuggested(from)) return;
 
     const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
-    logger.info(`Matching properties for ${from}: ${properties.length} properties + ${projects.length} projects loaded, criteria zone=${lead.zone} budget=${lead.budget} type=${lead.type || "any"} bedrooms=${lead.bedrooms || "any"}`);
+    logger.info(`Matching properties for ${from}: ${properties.length} properties + ${projects.length} projects loaded, criteria zone=${lead.zone} budget=${lead.budget} type=${lead.type || "any"} bedrooms=${lead.bedrooms || "any"} operation=${lead.operation || "any"}`);
     const matches = await matchProperties(
-      { zone: lead.zone, budget: lead.budget, type: lead.type, bedrooms: lead.bedrooms },
+      { zone: lead.zone, budget: lead.budget, type: lead.type, bedrooms: lead.bedrooms, operation: lead.operation },
       [...properties, ...projects]
     );
     if (!matches.length) {
