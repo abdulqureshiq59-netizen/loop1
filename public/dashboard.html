@@ -437,6 +437,36 @@
   .admin-config .saved-tick { color: #34d399; font-size: 0.9em; opacity: 0; transition: opacity .2s; }
   .admin-config .saved-tick.show { opacity: 1; }
 
+  .lang-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 14px;
+    padding-left: 14px;
+    border-left: 1px solid var(--sidebar-border);
+  }
+  .lang-toggle label {
+    color: var(--sidebar-text-dim);
+    font-size: 0.75em;
+    white-space: nowrap;
+  }
+  .lang-toggle .lang-btn {
+    padding: 5px 10px;
+    border: 1px solid var(--sidebar-border);
+    border-radius: var(--radius-sm);
+    background: var(--sidebar-bg-hover);
+    color: var(--sidebar-text-dim);
+    font-size: 0.75em;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .lang-toggle .lang-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
   .empty-state {
     display: flex;
     flex-direction: column;
@@ -463,6 +493,11 @@
       <input type="text" id="adminPhoneInput" placeholder="e.g. 59899xxxxxx">
       <button onclick="saveAdminPhone()">Save</button>
       <span class="saved-tick" id="adminPhoneSaved">✓</span>
+    </div>
+    <div class="lang-toggle">
+      <label>🌐 Bot replies in:</label>
+      <button class="lang-btn" id="langBtnEs" onclick="setBotLanguage('es')">ES</button>
+      <button class="lang-btn" id="langBtnEn" onclick="setBotLanguage('en')">EN</button>
     </div>
   </div>
 
@@ -775,6 +810,31 @@ async function saveAdminPhone() {
   setTimeout(() => tick.classList.remove('show'), 1800);
 }
 loadAdminPhone();
+
+// Bot reply language toggle (client's request, 2026-09-20) — flips between
+// Spanish (real customers) and English (developer testing) without a
+// redeploy. Persisted server-side (app_settings), so it survives a restart
+// and applies immediately to the next AI reply.
+function updateLangButtons(language) {
+  document.getElementById('langBtnEs').classList.toggle('active', language === 'es');
+  document.getElementById('langBtnEn').classList.toggle('active', language === 'en');
+}
+async function loadBotLanguage() {
+  try {
+    const r = await (await fetch('/api/settings/bot-language')).json();
+    if (r.success) updateLangButtons(r.language);
+  } catch (err) { /* non-critical — leave buttons as-is */ }
+}
+async function setBotLanguage(language) {
+  updateLangButtons(language); // optimistic, feels instant
+  try {
+    const r = await (await fetch('/api/settings/bot-language', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language }),
+    })).json();
+    if (r.success) updateLangButtons(r.language);
+  } catch (err) { /* leave the optimistic state — next load will correct it if it actually failed */ }
+}
+loadBotLanguage();
 
 async function sendMessage() {
   const input = document.getElementById('messageInput');
