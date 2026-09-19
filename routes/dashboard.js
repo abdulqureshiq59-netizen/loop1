@@ -37,9 +37,20 @@ router.get('/api/conversations/:phone', async (req, res) => {
   }
 });
 
-router.post('/api/conversations/:phone/mode', (req, res) => {
+router.post('/api/conversations/:phone/mode', async (req, res) => {
   try {
     conversationState.setMode(req.params.phone, req.body.mode);
+
+    // An agent clicking "Take Control" is itself a real pipeline event —
+    // move the lead to CONTACTADO (if it isn't already further along) so
+    // the pipeline board reflects it without the agent also having to
+    // remember to drag the card there manually.
+    if (req.body.mode === 'human') {
+      await leadsDb.bumpStageTo(req.params.phone, 'CONTACTADO').catch(err => {
+        logger.error(`Failed to auto-advance stage to CONTACTADO for ${req.params.phone}:`, err.message);
+      });
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
