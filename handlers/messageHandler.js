@@ -1,4 +1,4 @@
-const { getAIReply, LANGUAGE } = require("./aiReply");
+const { getAIReply, getLanguage } = require("./aiReply");
 const { checkHandoff } = require("../services/handoffDetector");
 const { sendTextMessage } = require("../utils/whatsappAPI");
 const conversationState = require("../services/conversationState");
@@ -12,9 +12,15 @@ const leadsDb = require("../services/leadsDb");
 const adminNotify = require("../services/adminNotify");
 const logger = require("../utils/logger");
 
-const HANDOFF_MESSAGE = LANGUAGE === "en"
-  ? "Understood — I'm connecting you with one of our agents now, they'll take it from here."
-  : "Entendido — te voy a conectar con uno de nuestros agentes, ellos van a continuar la conversación.";
+// A function, not a load-time constant (2026-09-20): language can now be
+// toggled live from the dashboard, so this must be re-evaluated on every
+// handoff instead of being frozen at whatever it was when the process
+// booted.
+function getHandoffMessage() {
+  return getLanguage() === "en"
+    ? "Understood — I'm connecting you with one of our agents now, they'll take it from here."
+    : "Entendido — te voy a conectar con uno de nuestros agentes, ellos van a continuar la conversación.";
+}
 
 async function handleIncomingMessage(message, from) {
   try {
@@ -71,8 +77,9 @@ async function handleIncomingMessage(message, from) {
       const handoffResult = await checkHandoff(text);
       if (handoffResult.handoff) {
         logger.info(`Handoff triggered for ${from}: ${handoffResult.reason}`);
-        conversationState.addMessage(from, "ai", HANDOFF_MESSAGE);
-        await sendTextMessage(from, HANDOFF_MESSAGE);
+        const handoffMessage = getHandoffMessage();
+        conversationState.addMessage(from, "ai", handoffMessage);
+        await sendTextMessage(from, handoffMessage);
         conversationState.setMode(from, "human");
         qualifyLeadInBackground(from, text);
         return;
@@ -238,15 +245,16 @@ async function maybeSuggestProperties(from, lead) {
     }
     logger.info(`Found ${matches.length} property match(es) for ${from}, sending top ${Math.min(3, matches.length)}`);
 
+    const language = getLanguage();
     const top = matches.slice(0, 3);
     const lines = top.map((p, i) => {
-      const price = p.price_display || (LANGUAGE === "en" ? "price on request" : "precio a consultar");
+      const price = p.price_display || (language === "en" ? "price on request" : "precio a consultar");
       return `${i + 1}. ${p.title} — ${price} (${p.link})`;
     });
-    const intro = LANGUAGE === "en"
+    const intro = language === "en"
       ? "Here are a few properties that match what you're looking for:"
       : "¡Encontramos estas propiedades que podrían interesarte!";
-    const outro = LANGUAGE === "en"
+    const outro = language === "en"
       ? `An agent (${top[0].agent_name || "the assigned agent"}) will follow up with more details.`
       : `Un agente (${top[0].agent_name || "el agente asignado"}) va a seguir con más detalles.`;
     const message = `${intro}\n\n${lines.join("\n")}\n\n${outro}`;
