@@ -127,9 +127,16 @@ async function upsertLead(phone, leadData) {
       ]
     );
     logger.info(`Lead upserted for ${phone} (stage: ${nextStage})`);
-    notifyOnStageChange(phone, currentStage, nextStage, leadData).catch(err => {
-      logger.error(`Failed to send admin notification for ${phone}:`, err.message);
-    });
+    // NOTE (2026-09-20): the HOT-lead admin alert used to fire from here via
+    // notifyOnStageChange, but that only triggers on an actual oldStage ->
+    // CALIENTE transition, and `stage` never moves backward — so a phone
+    // number that had already reached CALIENTE once could never re-alert the
+    // admin for a later, genuinely new hot inquiry. That alert now lives in
+    // handlers/messageHandler.js (maybeNotifyHotLead), gated by
+    // conversationState's per-conversation hotAlerted flag instead, which
+    // correctly resets when the chat is handed back to AI. (VISITA can't be
+    // reached via computeAutoStage, so there was never a real case for that
+    // branch to fire from here either.)
   } catch (err) {
     logger.error('Error syncing lead to database:', err.message);
   }
