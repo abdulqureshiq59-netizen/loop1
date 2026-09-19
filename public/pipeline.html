@@ -3,66 +3,156 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Loop Inmobiliaria - Pipeline</title>
+<title>Loop Inmobiliaria — Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#f5f7fa; height:100vh; overflow:hidden; }
+  :root {
+    --bg: #f3f4f8;
+    --panel: #ffffff;
+    --border: #e6e8f0;
+    --text: #1a1d29;
+    --text-dim: #6b7280;
+    --text-faint: #9ca3af;
 
-  .topbar {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:14px 20px; background:#2c3e50; color:#fff;
+    --sidebar-bg: #14162a;
+    --sidebar-bg-hover: #1e2138;
+    --sidebar-bg-active: #2a2e52;
+    --sidebar-border: #24273f;
+    --sidebar-text-dim: #7d8299;
+
+    --accent: #6d5ef8;
+    --accent-dim: #6d5ef822;
+    --accent-strong: #5a4be0;
+
+    --hot: #ef4a5f;
+    --warm: #f5a623;
+    --cold: #9aa1b5;
+    --new: #3f8efc;
+    --contacted: #f39c12;
+    --visit: #9b59b6;
+    --negotiation: #16a085;
+    --closed: #1f9d55;
+
+    --radius: 12px;
+    --radius-sm: 8px;
   }
-  .topbar .brand { font-size:1.2em; font-weight:bold; display:flex; align-items:center; gap:8px; }
-  .topbar .summary { font-size:0.9em; color:#bdc3c7; }
-  .topbar a { color:#3498db; text-decoration:none; font-size:0.85em; font-weight:bold; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ============ TOP NAV (shared with dashboard) ============ */
+  .topnav {
+    height: 58px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--sidebar-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+  }
+  .topnav .brand {
+    display: flex; align-items: center; gap: 10px;
+    color: #fff; font-weight: 700; font-size: 1.05em; letter-spacing: -0.01em;
+  }
+  .topnav .brand .mark {
+    width: 30px; height: 30px;
+    background: linear-gradient(135deg, var(--accent), #9b8cff);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1em;
+  }
+  .topnav .navlinks { display: flex; gap: 4px; }
+  .topnav .navlinks a {
+    color: var(--sidebar-text-dim); text-decoration: none;
+    font-size: 0.88em; font-weight: 600;
+    padding: 8px 14px; border-radius: 8px;
+    transition: all .15s;
+  }
+  .topnav .navlinks a:hover { color: #fff; background: var(--sidebar-bg-hover); }
+  .topnav .navlinks a.active { color: #fff; background: var(--sidebar-bg-active); }
+  .topnav .summary { color: var(--sidebar-text-dim); font-size: 0.82em; font-weight: 500; }
 
   .board {
-    display:flex; gap:14px; padding:16px; height:calc(100vh - 56px);
-    overflow-x:auto; align-items:flex-start;
+    display: flex; gap: 14px; padding: 18px;
+    height: calc(100vh - 58px);
+    overflow-x: auto; align-items: flex-start;
   }
+  .board::-webkit-scrollbar { height: 8px; }
+  .board::-webkit-scrollbar-thumb { background: #d7dae3; border-radius: 4px; }
 
   .column {
-    background:#eef1f5; border-radius:8px; min-width:270px; max-width:270px;
-    display:flex; flex-direction:column; max-height:100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-width: 272px; max-width: 272px;
+    display: flex; flex-direction: column; max-height: 100%;
+    box-shadow: 0 1px 2px rgba(20,22,42,0.03);
   }
   .column-header {
-    padding:12px 14px; font-weight:bold; font-size:0.85em; color:#2c3e50;
-    border-bottom:3px solid var(--stage-color, #3498db);
-    display:flex; justify-content:space-between; align-items:center;
+    padding: 14px 14px 12px;
+    font-weight: 700; font-size: 0.82em; color: var(--text);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .column-header .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--stage-color, var(--accent)); margin-right: 7px;
   }
   .column-count {
-    background:#fff; border-radius:12px; padding:2px 8px; font-size:0.8em; color:#7f8c8d;
+    background: var(--bg); border-radius: 12px; padding: 2px 9px;
+    font-size: 0.78em; color: var(--text-dim); font-weight: 600;
   }
-  .column-body { padding:10px; overflow-y:auto; flex:1; }
-  .column-body.drag-over { background:#dfe7ee; }
+  .column-body { padding: 10px; overflow-y: auto; flex: 1; }
+  .column-body::-webkit-scrollbar { width: 5px; }
+  .column-body::-webkit-scrollbar-thumb { background: #e2e4ec; border-radius: 3px; }
+  .column-body.drag-over { background: var(--accent-dim); }
 
   .card {
-    background:#fff; border-radius:6px; padding:12px; margin-bottom:10px;
-    box-shadow:0 1px 3px rgba(0,0,0,0.12); cursor:grab; border-left:4px solid var(--stage-color, #3498db);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px; margin-bottom: 9px;
+    box-shadow: 0 1px 2px rgba(20,22,42,0.05);
+    cursor: grab;
+    border-left: 3px solid var(--stage-color, var(--accent));
+    transition: box-shadow .15s, transform .15s;
   }
-  .card:active { cursor:grabbing; }
-  .card-name { font-weight:bold; color:#2c3e50; font-size:0.95em; margin-bottom:4px; }
-  .card-sub { font-size:0.8em; color:#7f8c8d; margin-bottom:6px; }
-  .card-tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+  .card:hover { box-shadow: 0 3px 10px rgba(20,22,42,0.09); }
+  .card:active { cursor: grabbing; }
+  .card-name { font-weight: 700; color: var(--text); font-size: 0.9em; margin-bottom: 5px; }
+  .card-sub { font-size: 0.75em; color: var(--text-faint); margin-bottom: 8px; }
+  .card-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
   .tag {
-    font-size:0.7em; padding:2px 7px; border-radius:10px; background:#ecf0f1; color:#2c3e50;
+    font-size: 0.68em; padding: 3px 8px; border-radius: 10px;
+    background: var(--bg); color: var(--text-dim); font-weight: 600;
   }
-  .tag.temp-Caliente { background:#e74c3c; color:#fff; }
-  .tag.temp-Tibio { background:#f1c40f; color:#2c3e50; }
-  .tag.temp-Frio { background:#95a5a6; color:#fff; }
+  .tag.temp-Caliente { background: #fde8ea; color: var(--hot); }
+  .tag.temp-Tibio { background: #fef3dd; color: #c9821a; }
+  .tag.temp-Frio { background: #eef0f4; color: var(--cold); }
   .card-msg {
-    font-size:0.8em; color:#576574; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    font-size: 0.78em; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .card-time { font-size:0.7em; color:#95a5a6; margin-top:6px; }
+  .card-time { font-size: 0.68em; color: var(--text-faint); margin-top: 7px; }
 
-  .empty-col { text-align:center; color:#b2bec3; font-size:0.8em; padding:20px 0; }
+  .empty-col { text-align: center; color: var(--text-faint); font-size: 0.8em; padding: 24px 0; }
 </style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="brand">📋 Loop Inmobiliaria — Pipeline</div>
+  <div class="topnav">
+    <div class="brand"><span class="mark">🏢</span> Loop Inmobiliaria</div>
+    <div class="navlinks">
+      <a href="/dashboard">💬 Chats</a>
+      <a href="/pipeline" class="active">📋 Pipeline</a>
+    </div>
     <div class="summary" id="summary">Loading…</div>
-    <a href="/dashboard">💬 Open chat dashboard</a>
   </div>
 
   <div class="board" id="board"></div>
@@ -80,40 +170,56 @@ const STAGE_LABELS = {
 const TEMP_LABELS = { Caliente: "Hot", Tibio: "Warm", Frio: "Cold" };
 
 const STAGE_COLORS = {
-  NUEVO: "#95a5a6", CALIFICANDO: "#3498db", CALIENTE: "#e74c3c",
-  CONTACTADO: "#f39c12", VISITA: "#9b59b6", NEGOCIACION: "#16a085", CERRADO: "#27ae60",
+  NUEVO: "var(--new)", CALIFICANDO: "var(--accent)", CALIENTE: "var(--hot)",
+  CONTACTADO: "var(--contacted)", VISITA: "var(--visit)", NEGOCIACION: "var(--negotiation)", CERRADO: "var(--closed)",
 };
 let stages = [];
 let leadsByPhone = {};
 let draggedPhone = null;
+let lastSignature = null; // skip re-render when nothing actually changed, so column scroll position + drag state survive polling
 
 async function load() {
   const r = await (await fetch('/api/pipeline')).json();
   if (!r.success) {
-    document.getElementById('board').innerHTML = `<p style="padding:20px;color:#e74c3c;">Error loading pipeline: ${r.error}</p>`;
+    document.getElementById('board').innerHTML = `<p style="padding:20px;color:var(--hot);">Error loading pipeline: ${r.error}</p>`;
     return;
   }
   stages = r.stages;
   leadsByPhone = {};
   r.data.forEach(l => leadsByPhone[l.phone] = l);
+
+  const signature = JSON.stringify(r.data.map(l => [l.phone, l.stage, l.temperature, l.last_message, l.name]));
+  if (signature === lastSignature) {
+    updateSummary(r.data);
+    return; // nothing changed — don't touch the DOM (keeps scroll position + hover state stable)
+  }
+  lastSignature = signature;
   render(r.data);
+}
+
+function updateSummary(leads) {
+  const hot = leads.filter(l => l.temperature === 'Caliente').length;
+  document.getElementById('summary').textContent = `${leads.length} leads · ${hot} hot`;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
 function render(leads) {
   const board = document.getElementById('board');
   board.innerHTML = '';
-  const hot = leads.filter(l => l.temperature === 'Caliente').length;
-  document.getElementById('summary').textContent = `${leads.length} leads — ${hot} hot`;
+  updateSummary(leads);
 
   stages.forEach(stage => {
     const col = document.createElement('div');
     col.className = 'column';
-    col.style.setProperty('--stage-color', STAGE_COLORS[stage] || '#3498db');
+    col.style.setProperty('--stage-color', STAGE_COLORS[stage] || 'var(--accent)');
 
     const stageLeads = leads.filter(l => l.stage === stage);
     col.innerHTML = `
       <div class="column-header">
-        <span>${STAGE_LABELS[stage] || stage}</span>
+        <span><span class="dot"></span>${STAGE_LABELS[stage] || stage}</span>
         <span class="column-count">${stageLeads.length}</span>
       </div>
       <div class="column-body" data-stage="${stage}"></div>`;
@@ -136,19 +242,19 @@ function makeCard(l, stage) {
   const card = document.createElement('div');
   card.className = 'card';
   card.draggable = true;
-  card.style.setProperty('--stage-color', STAGE_COLORS[stage] || '#3498db');
+  card.style.setProperty('--stage-color', STAGE_COLORS[stage] || 'var(--accent)');
   card.dataset.phone = l.phone;
 
-  const time = l.updated_at ? new Date(l.updated_at).toLocaleString() : '';
+  const time = l.updated_at ? new Date(l.updated_at).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
   card.innerHTML = `
-    <div class="card-name">${l.name || l.phone}</div>
-    <div class="card-sub">${l.channel || 'WhatsApp'} ${l.property_id ? '· prop #' + l.property_id : ''}</div>
+    <div class="card-name">${escapeHtml(l.name || l.phone)}</div>
+    <div class="card-sub">${escapeHtml(l.channel || 'WhatsApp')} ${l.property_id ? '· prop #' + escapeHtml(l.property_id) : ''}</div>
     <div class="card-tags">
       ${l.temperature ? `<span class="tag temp-${l.temperature}">${TEMP_LABELS[l.temperature] || l.temperature}</span>` : ''}
-      ${l.zone ? `<span class="tag">${l.zone}</span>` : ''}
-      ${l.budget ? `<span class="tag">$${l.budget}</span>` : ''}
+      ${l.zone ? `<span class="tag">${escapeHtml(l.zone)}</span>` : ''}
+      ${l.budget ? `<span class="tag">$${Number(l.budget).toLocaleString()}</span>` : ''}
     </div>
-    <div class="card-msg">${l.last_message || ''}</div>
+    <div class="card-msg">${escapeHtml(l.last_message || '')}</div>
     <div class="card-time">${time}</div>`;
 
   card.addEventListener('dragstart', () => { draggedPhone = l.phone; card.style.opacity = '0.5'; });
@@ -164,6 +270,7 @@ async function onDrop(e, newStage, body) {
   if (!lead || lead.stage === newStage) return;
 
   lead.stage = newStage; // optimistic update
+  lastSignature = null; // force the next render to reflect this change
   render(Object.values(leadsByPhone));
 
   try {
@@ -171,9 +278,10 @@ async function onDrop(e, newStage, body) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: newStage }),
     })).json();
-    if (!r.success) { alert('Could not save stage: ' + r.error); load(); }
+    if (!r.success) { alert('Could not save stage: ' + r.error); lastSignature = null; load(); }
   } catch (err) {
     alert('Network error saving stage');
+    lastSignature = null;
     load();
   }
 }
