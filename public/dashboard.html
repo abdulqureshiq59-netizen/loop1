@@ -702,6 +702,11 @@ setInterval(() => {
   loadConversations();
   if (selectedPhone) selectConversation(selectedPhone);
 }, 5000);
+
+// Coming here from a pipeline card (/dashboard?phone=59899...) opens that
+// customer's chat immediately instead of landing on the empty state.
+const openPhone = new URLSearchParams(window.location.search).get('phone');
+if (openPhone) selectConversation(openPhone);
 </script>
 </body>
 </html>
