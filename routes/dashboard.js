@@ -6,6 +6,7 @@ const leadsDb = require('../services/leadsDb');
 const { sendTextMessage } = require('../utils/whatsappAPI');
 const { getAllProperties, getAllProjects } = require('../services/propertyLookup');
 const adminNotify = require('../services/adminNotify');
+const { getLanguage, setLanguage } = require('../handlers/aiReply');
 const logger = require('../utils/logger');
 
 // TEMPORARY (2026-09-19): one-off check the client asked for — how many
@@ -149,6 +150,29 @@ router.post('/api/settings/admin-phone', async (req, res) => {
   } catch (err) {
     logger.error('Error saving admin phone setting:', err.message);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Bot reply language toggle (client's request, 2026-09-20) — used to only be
+// switchable via the BOT_LANGUAGE env var, which needed a redeploy. Now
+// editable live from the dashboard, persisted in app_settings so it
+// survives a restart (see handlers/aiReply.js).
+router.get('/api/settings/bot-language', async (req, res) => {
+  try {
+    res.json({ success: true, language: getLanguage() });
+  } catch (err) {
+    logger.error('Error loading bot language setting:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/api/settings/bot-language', async (req, res) => {
+  try {
+    await setLanguage(req.body.language);
+    res.json({ success: true, language: getLanguage() });
+  } catch (err) {
+    logger.error('Error saving bot language setting:', err.message);
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
