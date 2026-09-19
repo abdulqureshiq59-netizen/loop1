@@ -1,468 +1,498 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loop Inmobiliaria - Dashboard</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loop Inmobiliaria — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f3f4f8;
+    --panel: #ffffff;
+    --border: #e6e8f0;
+    --text: #1a1d29;
+    --text-dim: #6b7280;
+    --text-faint: #9ca3af;
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f7fa;
-            height: 100vh;
-            overflow: hidden;
-        }
+    --sidebar-bg: #14162a;
+    --sidebar-bg-hover: #1e2138;
+    --sidebar-bg-active: #2a2e52;
+    --sidebar-border: #24273f;
+    --sidebar-text: #cbd0e0;
+    --sidebar-text-dim: #7d8299;
 
-        .container {
-            display: grid;
-            grid-template-columns: 300px 1fr 350px;
-            height: 100vh;
-            gap: 0;
-        }
+    --accent: #6d5ef8;
+    --accent-dim: #6d5ef822;
+    --accent-strong: #5a4be0;
 
-        /* ============ SIDEBAR ============ */
-        .sidebar {
-            background: #2c3e50;
-            color: white;
-            overflow-y: auto;
-            border-right: 1px solid #34495e;
-        }
+    --hot: #ef4a5f;
+    --warm: #f5a623;
+    --cold: #9aa1b5;
+    --new: #3f8efc;
 
-        .logo {
-            padding: 20px;
-            border-bottom: 1px solid #34495e;
-            font-size: 1.3em;
-            font-weight: bold;
-        }
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 2px rgba(20,22,42,0.04), 0 4px 14px rgba(20,22,42,0.05);
+  }
 
-        .stats {
-            padding: 15px;
-            border-bottom: 1px solid #34495e;
-        }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        .stat-item {
-            margin: 10px 0;
-            padding: 10px;
-            background: #34495e;
-            border-radius: 6px;
-            font-size: 0.9em;
-        }
+  body {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+  }
 
-        .stat-label {
-            color: #95a5a6;
-            font-size: 0.8em;
-        }
+  /* ============ TOP NAV ============ */
+  .topnav {
+    height: 58px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--sidebar-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+  }
+  .topnav .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.05em;
+    letter-spacing: -0.01em;
+  }
+  .topnav .brand .mark {
+    width: 30px; height: 30px;
+    background: linear-gradient(135deg, var(--accent), #9b8cff);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1em;
+  }
+  .topnav .navlinks { display: flex; gap: 4px; }
+  .topnav .navlinks a {
+    color: var(--sidebar-text-dim);
+    text-decoration: none;
+    font-size: 0.88em;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 8px;
+    transition: all .15s;
+  }
+  .topnav .navlinks a:hover { color: #fff; background: var(--sidebar-bg-hover); }
+  .topnav .navlinks a.active { color: #fff; background: var(--sidebar-bg-active); }
+  .topnav .right { color: var(--sidebar-text-dim); font-size: 0.8em; }
 
-        .stat-value {
-            color: #3498db;
-            font-weight: bold;
-            font-size: 1.2em;
-        }
+  .container {
+    display: grid;
+    grid-template-columns: 300px 1fr 340px;
+    height: calc(100vh - 58px);
+  }
 
-        .search-box {
-            padding: 15px;
-            border-bottom: 1px solid #34495e;
-        }
+  /* ============ SIDEBAR (conversation list) ============ */
+  .sidebar {
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--sidebar-border);
+    min-height: 0;
+  }
 
-        .search-box input {
-            width: 100%;
-            padding: 10px;
-            border: none;
-            border-radius: 6px;
-            background: #34495e;
-            color: white;
-            font-size: 0.9em;
-        }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 14px;
+  }
+  .stat-item {
+    padding: 10px 8px;
+    background: var(--sidebar-bg-hover);
+    border-radius: var(--radius-sm);
+    text-align: center;
+  }
+  .stat-label {
+    color: var(--sidebar-text-dim);
+    font-size: 0.68em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+  .stat-value { color: #fff; font-weight: 700; font-size: 1.25em; }
+  .stat-item.hot .stat-value { color: var(--hot); }
 
-        .search-box input::placeholder {
-            color: #95a5a6;
-        }
+  .search-box { padding: 0 14px 12px; }
+  .search-box input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--sidebar-border);
+    border-radius: var(--radius-sm);
+    background: var(--sidebar-bg-hover);
+    color: #fff;
+    font-size: 0.85em;
+    font-family: inherit;
+    outline: none;
+  }
+  .search-box input::placeholder { color: var(--sidebar-text-dim); }
+  .search-box input:focus { border-color: var(--accent); }
 
-        .conversations {
-            padding: 10px;
-        }
+  .conversations {
+    padding: 6px 8px 8px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .conversations::-webkit-scrollbar { width: 6px; }
+  .conversations::-webkit-scrollbar-thumb { background: var(--sidebar-bg-active); border-radius: 3px; }
 
-        .conversation-item {
-            padding: 12px;
-            margin: 8px 0;
-            background: #34495e;
-            border-radius: 6px;
-            cursor: pointer;
-            border-left: 4px solid transparent;
-            transition: all 0.3s;
-        }
+  .conversation-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    margin: 3px 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background .12s;
+  }
+  .conversation-item:hover { background: var(--sidebar-bg-hover); }
+  .conversation-item.active { background: var(--sidebar-bg-active); }
 
-        .conversation-item:hover {
-            background: #3d5a73;
-        }
+  .avatar {
+    flex-shrink: 0;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #9b8cff);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 0.85em;
+    position: relative;
+  }
+  .temp-dot {
+    position: absolute; bottom: -2px; right: -2px;
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 2px solid var(--sidebar-bg);
+  }
+  .temp-dot.hot { background: var(--hot); }
+  .temp-dot.warm { background: var(--warm); }
+  .temp-dot.cold { background: var(--cold); }
 
-        .conversation-item.active {
-            background: #3498db;
-            border-left-color: #fff;
-        }
+  .conv-main { min-width: 0; flex: 1; }
+  .conv-name {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .conv-preview {
+    font-size: 0.78em;
+    color: var(--sidebar-text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 2px;
+  }
+  .conv-time { font-size: 0.68em; color: var(--sidebar-text-dim); flex-shrink: 0; }
 
-        .conv-name {
-            font-weight: bold;
-            font-size: 0.95em;
-            margin-bottom: 4px;
-        }
+  .empty-list { padding: 30px 14px; text-align: center; color: var(--sidebar-text-dim); font-size: 0.85em; }
 
-        .conv-preview {
-            font-size: 0.85em;
-            color: #bdc3c7;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
+  /* ============ MAIN CHAT AREA ============ */
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    min-height: 0;
+  }
 
-        .conv-time {
-            font-size: 0.75em;
-            color: #95a5a6;
-            margin-top: 4px;
-        }
+  .chat-header {
+    padding: 16px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
 
-        /* ============ MAIN CHAT AREA ============ */
-        .main-content {
-            display: flex;
-            flex-direction: column;
-            background: white;
-            border-right: 1px solid #e0e0e0;
-        }
+  .chat-header-info { display: flex; align-items: center; gap: 12px; }
+  .chat-header-info .avatar { width: 42px; height: 42px; font-size: 0.95em; }
+  .chat-header-info h2 { color: var(--text); font-size: 1.05em; font-weight: 700; }
+  .chat-header-info p { color: var(--text-dim); font-size: 0.82em; margin-top: 2px; }
 
-        .chat-header {
-            padding: 20px;
-            background: white;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+  .chat-controls { display: flex; gap: 8px; }
 
-        .chat-header-info h2 {
-            color: #2c3e50;
-            margin-bottom: 5px;
-        }
+  .btn {
+    padding: 9px 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.82em;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all .15s;
+    display: flex; align-items: center; gap: 6px;
+  }
 
-        .chat-header-info p {
-            color: #7f8c8d;
-            font-size: 0.9em;
-        }
+  .btn-ai { background: #e8f8ee; color: #1f9d55; }
+  .btn-ai.active { background: #1f9d55; color: #fff; }
+  .btn-human { background: var(--accent-dim); color: var(--accent-strong); }
+  .btn-human.active { background: var(--accent); color: #fff; }
+  .btn:hover { filter: brightness(0.96); }
 
-        .chat-controls {
-            display: flex;
-            gap: 10px;
-        }
+  .messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 22px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+  }
+  .messages-container::-webkit-scrollbar { width: 7px; }
+  .messages-container::-webkit-scrollbar-thumb { background: #d7dae3; border-radius: 4px; }
 
-        .btn {
-            padding: 10px 15px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
+  .message { display: flex; margin: 6px 0; }
+  .message.customer { justify-content: flex-start; }
+  .message.ai, .message.agent { justify-content: flex-end; }
 
-        .btn-ai {
-            background: #27ae60;
-            color: white;
-        }
+  .message-col { display: flex; flex-direction: column; max-width: 68%; }
+  .message.customer .message-col { align-items: flex-start; }
+  .message.ai .message-col, .message.agent .message-col { align-items: flex-end; }
 
-        .btn-ai:hover {
-            background: #229954;
-        }
+  .message-bubble {
+    padding: 11px 14px;
+    border-radius: 14px;
+    font-size: 0.9em;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .message.customer .message-bubble {
+    background: #f0f1f6;
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
+  .message.ai .message-bubble {
+    background: var(--accent);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .message.agent .message-bubble {
+    background: #1f9d55;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
 
-        .btn-ai.inactive {
-            background: #95a5a6;
-        }
+  .message-sender {
+    font-size: 0.68em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-faint);
+    margin-bottom: 3px;
+    padding: 0 4px;
+  }
+  .message-time { font-size: 0.68em; color: var(--text-faint); margin-top: 4px; padding: 0 4px; }
 
-        .btn-human {
-            background: #3498db;
-            color: white;
-        }
+  .input-area {
+    padding: 16px 22px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .input-area input {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.9em;
+    font-family: inherit;
+    outline: none;
+    background: var(--bg);
+  }
+  .input-area input:focus { border-color: var(--accent); background: #fff; }
+  .input-area button {
+    padding: 12px 22px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 700;
+    font-family: inherit;
+    font-size: 0.88em;
+  }
+  .input-area button:hover { background: var(--accent-strong); }
 
-        .btn-human:hover {
-            background: #2980b9;
-        }
+  /* ============ RIGHT PANEL ============ */
+  .right-panel {
+    background: var(--panel);
+    overflow-y: auto;
+    min-height: 0;
+  }
+  .right-panel::-webkit-scrollbar { width: 6px; }
+  .right-panel::-webkit-scrollbar-thumb { background: #e2e4ec; border-radius: 3px; }
 
-        .btn-human.inactive {
-            background: #95a5a6;
-        }
+  .panel-section { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+  .panel-section h3 {
+    color: var(--text-faint);
+    margin-bottom: 12px;
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
 
-        .messages-container {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
+  .info-grid { display: flex; flex-direction: column; gap: 10px; }
+  .info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .info-label { color: var(--text-dim); font-size: 0.82em; flex-shrink: 0; }
+  .info-value {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.85em;
+    text-align: right;
+    word-break: break-word;
+  }
+  .info-value.empty { color: var(--text-faint); font-weight: 400; }
+  .info-value a { color: var(--accent); text-decoration: none; }
+  .info-value a:hover { text-decoration: underline; }
 
-        .message {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
+  .badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.75em;
+    font-weight: 700;
+  }
+  .badge-hot { background: #fde8ea; color: var(--hot); }
+  .badge-warm { background: #fef3dd; color: #c9821a; }
+  .badge-cold { background: #eef0f4; color: var(--cold); }
+  .badge-new { background: var(--accent-dim); color: var(--accent-strong); }
 
-        .message.customer {
-            justify-content: flex-start;
-        }
+  .stage-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px;
+    font-size: 0.75em; font-weight: 700;
+    background: #eef0f4; color: var(--text-dim);
+  }
+  .stage-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 
-        .message.ai {
-            justify-content: flex-end;
-        }
-
-        .message-bubble {
-            max-width: 70%;
-            padding: 12px 15px;
-            border-radius: 12px;
-            font-size: 0.95em;
-            line-height: 1.4;
-        }
-
-        .message.customer .message-bubble {
-            background: #ecf0f1;
-            color: #2c3e50;
-        }
-
-        .message.ai .message-bubble {
-            background: #3498db;
-            color: white;
-        }
-
-        .message-time {
-            font-size: 0.75em;
-            color: #95a5a6;
-            margin-top: 5px;
-        }
-
-        .input-area {
-            padding: 20px;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            gap: 10px;
-        }
-
-        .input-area input {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            font-size: 0.9em;
-        }
-
-        .input-area button {
-            padding: 12px 20px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        /* ============ RIGHT PANEL ============ */
-        .right-panel {
-            background: #f8f9fa;
-            overflow-y: auto;
-            border-left: 1px solid #e0e0e0;
-        }
-
-        .panel-section {
-            padding: 20px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .panel-section h3 {
-            color: #2c3e50;
-            margin-bottom: 15px;
-            font-size: 1em;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-        }
-
-        .info-item {
-            margin: 12px 0;
-            padding: 10px;
-            background: white;
-            border-radius: 6px;
-        }
-
-        .info-label {
-            color: #7f8c8d;
-            font-size: 0.85em;
-            margin-bottom: 4px;
-        }
-
-        .info-value {
-            color: #2c3e50;
-            font-weight: bold;
-            word-break: break-word;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.8em;
-            font-weight: bold;
-            margin: 5px 0;
-        }
-
-        .badge-new {
-            background: #f39c12;
-            color: white;
-        }
-
-        .badge-hot {
-            background: #e74c3c;
-            color: white;
-        }
-
-        .badge-warm {
-            background: #f1c40f;
-            color: #2c3e50;
-        }
-
-        .badge-cold {
-            background: #95a5a6;
-            color: white;
-        }
-
-        .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: #95a5a6;
-        }
-    </style>
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-faint);
+    gap: 8px;
+  }
+  .empty-state .icon { font-size: 2.6em; opacity: 0.5; }
+  .empty-state p { font-size: 0.9em; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <!-- SIDEBAR -->
-        <div class="sidebar">
-            <div class="logo">🏢 Loop IA</div>
 
-            <div class="stats">
-                <div class="stat-item">
-                    <div class="stat-label">Total Leads</div>
-                    <div class="stat-value" id="totalLeads">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Hot Leads</div>
-                    <div class="stat-value" id="hotLeads">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">New</div>
-                    <div class="stat-value" id="newLeads">0</div>
-                </div>
-            </div>
+  <div class="topnav">
+    <div class="brand"><span class="mark">🏢</span> Loop Inmobiliaria</div>
+    <div class="navlinks">
+      <a href="/dashboard" class="active">💬 Chats</a>
+      <a href="/pipeline">📋 Pipeline</a>
+    </div>
+    <div class="right" id="clock"></div>
+  </div>
 
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Search customer...">
-            </div>
-
-            <div class="conversations" id="conversationsList"></div>
+  <div class="container">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="stats">
+        <div class="stat-item">
+          <div class="stat-label">Total</div>
+          <div class="stat-value" id="totalLeads">0</div>
         </div>
-
-        <!-- MAIN CHAT AREA -->
-        <div class="main-content">
-            <div class="chat-header">
-                <div class="chat-header-info">
-                    <h2 id="customerName">Select a conversation</h2>
-                    <p id="customerPhone">📱 No customer selected</p>
-                </div>
-                <div class="chat-controls">
-                    <button class="btn btn-ai active" onclick="toggleAI(this)">🤖 AI ACTIVE</button>
-                    <button class="btn btn-human inactive" onclick="toggleHuman(this)">👤 TAKE CONTROL</button>
-                </div>
-            </div>
-
-            <div class="messages-container" id="messagesContainer">
-                <div class="empty-state">
-                    <div style="font-size: 3em; margin-bottom: 10px;">💬</div>
-                    <p>Select a conversation to view messages</p>
-                </div>
-            </div>
-
-            <div class="input-area">
-                <input type="text" id="messageInput" placeholder="Type a message...">
-                <button onclick="sendMessage()">Send</button>
-            </div>
+        <div class="stat-item hot">
+          <div class="stat-label">Hot</div>
+          <div class="stat-value" id="hotLeads">0</div>
         </div>
-
-        <!-- RIGHT PANEL -->
-        <div class="right-panel">
-            <div class="panel-section">
-                <h3>Lead Info</h3>
-
-                <div class="info-item">
-                    <div class="info-label">Status</div>
-                    <div id="leadStatus" class="badge badge-new">NEW</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Name</div>
-                    <div class="info-value" id="infoName">-</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Phone</div>
-                    <div class="info-value" id="infoPhone">-</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Channel</div>
-                    <div class="info-value" id="infoChannel">-</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Assigned To</div>
-                    <div class="info-value" id="infoAgent">-</div>
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <h3>Preferences</h3>
-
-                <div class="info-item">
-                    <div class="info-label">Operation</div>
-                    <div class="info-value" id="infoOperation">-</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Type</div>
-                    <div class="info-value" id="infoType">-</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Zone</div>
-                    <div class="info-value" id="infoZone">-</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Budget</div>
-                    <div class="info-value" id="infoBudget">-</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Bedrooms</div>
-                    <div class="info-value" id="infoBedrooms">-</div>
-                </div>
-            </div>
+        <div class="stat-item">
+          <div class="stat-label">New</div>
+          <div class="stat-value" id="newLeads">0</div>
         </div>
+      </div>
+
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search customer or phone...">
+      </div>
+
+      <div class="conversations" id="conversationsList"></div>
     </div>
 
-  <script>
-    let selectedPhone = null;
+    <!-- MAIN CHAT AREA -->
+    <div class="main-content">
+      <div class="chat-header">
+        <div class="chat-header-info">
+          <div class="avatar" id="headerAvatar">?</div>
+          <div>
+            <h2 id="customerName">Select a conversation</h2>
+            <p id="customerPhone">No customer selected</p>
+          </div>
+        </div>
+        <div class="chat-controls">
+          <button class="btn btn-ai active" onclick="toggleAI()">🤖 AI Active</button>
+          <button class="btn btn-human" onclick="toggleHuman()">🙋 Take Control</button>
+        </div>
+      </div>
+
+      <div class="messages-container" id="messagesContainer">
+        <div class="empty-state">
+          <div class="icon">💬</div>
+          <p>Select a conversation to view messages</p>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <input type="text" id="messageInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel" id="rightPanel">
+      <div class="empty-state" style="padding: 40px 20px;">
+        <div class="icon">👤</div>
+        <p>No lead selected</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+let selectedPhone = null;
 let currentMode = 'ai';
+let lastMessageSignature = null; // detects whether messages actually changed, so we don't reset scroll on every poll
+
+function initials(nameOrPhone) {
+  if (!nameOrPhone) return '?';
+  const clean = String(nameOrPhone).trim();
+  if (/^[+\d\s]+$/.test(clean)) return clean.slice(-2);
+  return clean.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (diffMin < 1) return 'now';
+  if (diffMin < 60) return diffMin + 'm';
+  if (diffMin < 1440) return Math.floor(diffMin / 60) + 'h';
+  return d.toLocaleDateString();
+}
 
 async function loadConversations() {
   const r = await (await fetch('/api/conversations')).json();
@@ -479,64 +509,164 @@ async function loadStats() {
   }
 }
 
+let allConversations = [];
 function renderConversations(list) {
+  allConversations = list;
+  applyFilterAndRender();
+}
+
+function applyFilterAndRender() {
+  const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+  const list = q
+    ? allConversations.filter(c => c.phone.toLowerCase().includes(q) || (c.lastMessage && c.lastMessage.text && c.lastMessage.text.toLowerCase().includes(q)))
+    : allConversations;
+
   const el = document.getElementById('conversationsList');
-  el.innerHTML = '';
-  list.forEach(c => {
-    const item = document.createElement('div');
-    item.className = 'conversation-item' + (c.phone === selectedPhone ? ' active' : '');
-    item.innerHTML = `<div class="conv-name">${c.phone}</div>
-      <div class="conv-preview">${c.lastMessage ? c.lastMessage.text : 'No messages'}</div>
-      <div class="conv-time">${c.lastMessage ? new Date(c.lastMessage.timestamp).toLocaleTimeString() : ''}</div>`;
-    item.onclick = () => selectConversation(c.phone);
-    el.appendChild(item);
-  });
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-list">No conversations${q ? ' match "' + q + '"' : ' yet'}</div>`;
+    return;
+  }
+  el.innerHTML = list.map(c => `
+    <div class="conversation-item ${c.phone === selectedPhone ? 'active' : ''}" onclick="selectConversation('${c.phone}')">
+      <div class="avatar">${initials(c.phone)}</div>
+      <div class="conv-main">
+        <div class="conv-name">${c.phone}</div>
+        <div class="conv-preview">${c.lastMessage ? escapeHtml(c.lastMessage.text) : 'No messages yet'}</div>
+      </div>
+      <div class="conv-time">${c.lastMessage ? timeAgo(c.lastMessage.timestamp) : ''}</div>
+    </div>`).join('');
+}
+document.getElementById('searchInput').addEventListener('input', applyFilterAndRender);
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
 async function selectConversation(phone) {
+  const isNewConversation = phone !== selectedPhone;
   selectedPhone = phone;
+  lastMessageSignature = null; // force a render since we switched conversations
   const r = await (await fetch(`/api/conversations/${phone}`)).json();
   if (!r.success) return;
 
   currentMode = r.data.mode;
-  document.getElementById('customerName').textContent = phone;
-  document.getElementById('customerPhone').textContent = `📱 ${phone}`;
+  document.getElementById('customerName').textContent = r.data.lead?.name || phone;
+  document.getElementById('customerPhone').textContent = phone;
+  document.getElementById('headerAvatar').textContent = initials(r.data.lead?.name || phone);
   updateModeButtons();
+  renderMessages(r.data.messages, isNewConversation);
+  renderLeadPanel(r.data.lead, phone);
 
-  document.getElementById('messagesContainer').innerHTML = r.data.messages.map(m => `
-    <div class="message ${m.sender === 'customer' ? 'customer' : 'ai'}">
-      <div><div class="message-bubble">${m.text}</div>
-      <div class="message-time">${new Date(m.timestamp).toLocaleTimeString()}</div></div>
-    </div>`).join('');
+  applyFilterAndRender(); // refresh active highlight in the list
+}
 
-  const lead = r.data.lead;
-  // Display-only translation: the stored value stays Spanish (Caliente,
-  // compra, etc.) — only what's shown on screen here is English. If this
-  // needs to go back to Spanish for the client later, these two maps can
-  // just be removed (or set to identity) — nothing else needs to change.
-  const tempMap = { 'Caliente': 'hot', 'Tibio': 'warm', 'Frio': 'cold' };
-  const tempLabels = { 'Caliente': 'HOT', 'Tibio': 'WARM', 'Frio': 'COLD' };
-  const operationLabels = { 'compra': 'Buy', 'alquiler': 'Rent', 'inversion': 'Invest' };
-  document.getElementById('leadStatus').textContent = lead ? (tempLabels[lead.temperature] || lead.temperature) : 'NEW';
-  document.getElementById('leadStatus').className = 'badge badge-' + (lead ? (tempMap[lead.temperature] || 'new') : 'new');
-  document.getElementById('infoName').textContent = lead && lead.name ? lead.name : '-';
-  document.getElementById('infoOperation').textContent = lead && lead.operation ? (operationLabels[lead.operation] || lead.operation) : '-';
-  document.getElementById('infoType').textContent = lead && lead.type ? lead.type : '-';
-  document.getElementById('infoZone').textContent = lead && lead.zone ? lead.zone : '-';
-  document.getElementById('infoBudget').textContent = lead && lead.budget ? lead.budget : '-';
-  document.getElementById('infoBedrooms').textContent = lead && lead.bedrooms ? lead.bedrooms : '-';
-  document.getElementById('infoPhone').textContent = phone;
-  document.getElementById('infoChannel').textContent = 'WhatsApp';
+function renderMessages(messages, forceScrollBottom) {
+  const signature = messages.length + '|' + (messages.length ? messages[messages.length - 1].timestamp : '');
+  if (signature === lastMessageSignature) return; // nothing new — leave the DOM (and scroll position) alone
+  lastMessageSignature = signature;
 
-  loadConversations();
+  const container = document.getElementById('messagesContainer');
+  const wasNearBottom = forceScrollBottom || (container.scrollHeight - container.scrollTop - container.clientHeight < 120);
+  const prevScrollTop = container.scrollTop;
+
+  if (!messages.length) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">💬</div><p>No messages yet</p></div>`;
+    return;
+  }
+
+  container.innerHTML = messages.map(m => {
+    const cls = m.sender === 'customer' ? 'customer' : (m.sender === 'agent' ? 'agent' : 'ai');
+    const label = m.sender === 'customer' ? '' : (m.sender === 'agent' ? 'Agent' : 'AI');
+    return `
+    <div class="message ${cls}">
+      <div class="message-col">
+        ${label ? `<div class="message-sender">${label}</div>` : ''}
+        <div class="message-bubble">${escapeHtml(m.text)}</div>
+        <div class="message-time">${new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  if (wasNearBottom) {
+    container.scrollTop = container.scrollHeight;
+  } else {
+    container.scrollTop = prevScrollTop;
+  }
+}
+
+const TEMP_MAP = { 'Caliente': 'hot', 'Tibio': 'warm', 'Frio': 'cold' };
+const TEMP_LABELS = { 'Caliente': 'HOT', 'Tibio': 'WARM', 'Frio': 'COLD' };
+const OPERATION_LABELS = { 'compra': 'Buy', 'alquiler': 'Rent', 'inversion': 'Invest', 'venta': 'Sell' };
+const STAGE_LABELS = {
+  NUEVO: 'New', CALIFICANDO: 'Qualifying', CALIENTE: 'Hot',
+  CONTACTADO: 'Contacted', VISITA: 'Visit', NEGOCIACION: 'Negotiation', CERRADO: 'Closed',
+};
+
+function field(value, formatter) {
+  if (value === undefined || value === null || value === '') return '<span class="info-value empty">—</span>';
+  return `<span class="info-value">${formatter ? formatter(value) : escapeHtml(value)}</span>`;
+}
+
+function renderLeadPanel(lead, phone) {
+  const panel = document.getElementById('rightPanel');
+  const badgeClass = lead ? (TEMP_MAP[lead.temperature] || 'new') : 'new';
+  const badgeLabel = lead ? (TEMP_LABELS[lead.temperature] || 'NEW') : 'NEW';
+  const stageLabel = lead && lead.stage ? (STAGE_LABELS[lead.stage] || lead.stage) : 'New';
+
+  const propertyLink = lead && lead.property_id
+    ? `<a href="https://loopinmobiliaria.uy/propiedad/${lead.property_id}" target="_blank">#${lead.property_id} ↗</a>`
+    : null;
+
+  panel.innerHTML = `
+    <div class="panel-section">
+      <h3>Lead Status</h3>
+      <div class="info-grid">
+        <div class="info-item"><span class="info-label">Temperature</span><span class="badge badge-${badgeClass}">${badgeLabel}</span></div>
+        <div class="info-item"><span class="info-label">Stage</span><span class="stage-pill"><span class="dot"></span>${stageLabel}</span></div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h3>Contact</h3>
+      <div class="info-grid">
+        <div class="info-item"><span class="info-label">Name</span>${field(lead && lead.name)}</div>
+        <div class="info-item"><span class="info-label">Phone</span>${field(phone)}</div>
+        <div class="info-item"><span class="info-label">Channel</span>${field((lead && lead.channel) || 'WhatsApp')}</div>
+        <div class="info-item"><span class="info-label">Address</span>${field(lead && lead.address)}</div>
+        <div class="info-item"><span class="info-label">Postcode</span>${field(lead && lead.postcode)}</div>
+        <div class="info-item"><span class="info-label">Assigned agent</span>${field(lead && lead.agent_name)}</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h3>Preferences</h3>
+      <div class="info-grid">
+        <div class="info-item"><span class="info-label">Operation</span>${field(lead && lead.operation, v => OPERATION_LABELS[v] || v)}</div>
+        <div class="info-item"><span class="info-label">Type</span>${field(lead && lead.type)}</div>
+        <div class="info-item"><span class="info-label">Zone</span>${field(lead && lead.zone)}</div>
+        <div class="info-item"><span class="info-label">Budget</span>${field(lead && lead.budget, v => '$' + Number(v).toLocaleString())}</div>
+        <div class="info-item"><span class="info-label">Bedrooms</span>${field(lead && lead.bedrooms)}</div>
+        <div class="info-item"><span class="info-label">Bathrooms</span>${field(lead && lead.bathrooms)}</div>
+        <div class="info-item"><span class="info-label">Financing</span>${field(lead && lead.financing)}</div>
+        <div class="info-item"><span class="info-label">Timeline</span>${field(lead && lead.timeline)}</div>
+        <div class="info-item"><span class="info-label">Features</span>${field(lead && lead.features)}</div>
+      </div>
+    </div>
+
+    ${propertyLink ? `
+    <div class="panel-section">
+      <h3>Matched Property</h3>
+      <div class="info-grid">
+        <div class="info-item"><span class="info-label">Property</span><span class="info-value">${propertyLink}</span></div>
+      </div>
+    </div>` : ''}
+  `;
 }
 
 function updateModeButtons() {
   const aiBtn = document.querySelector('.btn-ai'), humanBtn = document.querySelector('.btn-human');
   aiBtn.classList.toggle('active', currentMode === 'ai');
-  aiBtn.classList.toggle('inactive', currentMode !== 'ai');
   humanBtn.classList.toggle('active', currentMode === 'human');
-  humanBtn.classList.toggle('inactive', currentMode !== 'human');
 }
 
 async function setMode(mode) {
@@ -557,11 +687,21 @@ async function sendMessage() {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: input.value }),
   });
   input.value = '';
+  lastMessageSignature = null; // force this one refresh to actually re-render (we just added a message)
   selectConversation(selectedPhone);
 }
 
+function tickClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+}
+tickClock();
+setInterval(tickClock, 30000);
+
 loadConversations();
-setInterval(() => { loadConversations(); if (selectedPhone) selectConversation(selectedPhone); }, 5000);
-  </script>
+setInterval(() => {
+  loadConversations();
+  if (selectedPhone) selectConversation(selectedPhone);
+}, 5000);
+</script>
 </body>
 </html>
