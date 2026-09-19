@@ -76,6 +76,21 @@ router.post('/api/conversations/:phone/mode', async (req, res) => {
       });
     }
 
+    // Handing a conversation back to the AI (human -> ai) is treated as the
+    // start of a fresh inquiry cycle for THIS phone number — e.g. an agent
+    // wrapped up one deal and the same customer is now asking about
+    // something else. Without this, propertiesSuggested/visitScheduled
+    // (both "only ever fire once per conversation" flags) would stay stuck
+    // true forever from the first deal and silently block a genuinely new
+    // property suggestion or visit alert for the second one (bug found
+    // 2026-09-19: a same-number second inquiry got no property suggestion
+    // at all because the flag was already set from an earlier inquiry).
+    if (req.body.mode === 'ai') {
+      conversationState.setPropertiesSuggested(req.params.phone, false);
+      conversationState.setVisitScheduled(req.params.phone, false);
+      logger.info(`${req.params.phone} handed back to AI — reset properties-suggested/visit-scheduled flags for a fresh inquiry`);
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
