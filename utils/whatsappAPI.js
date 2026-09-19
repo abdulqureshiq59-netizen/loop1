@@ -2,7 +2,8 @@
 const axios = require("axios");
 const logger = require("./logger");
 
-const GRAPH_API_URL = `https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+const GRAPH_API_BASE = "https://graph.facebook.com/v21.0";
+const GRAPH_API_URL = `${GRAPH_API_BASE}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
 async function sendTextMessage(to, bodyText) {
   try {
@@ -55,7 +56,26 @@ async function markMessageAsRead(messageId) {
   }
 }
 
+// Downloads a voice note / media file sent by a customer. WhatsApp Cloud
+// API is two-step: first resolve the media ID to a short-lived URL, then
+// fetch that URL (still needs the same bearer token) to get the actual
+// bytes. Used for voice-note transcription (services/transcribeAudio.js).
+async function downloadMedia(mediaId) {
+  const metaRes = await axios.get(`${GRAPH_API_BASE}/${mediaId}`, {
+    headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
+  });
+  const { url, mime_type } = metaRes.data;
+
+  const fileRes = await axios.get(url, {
+    headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
+    responseType: "arraybuffer",
+  });
+
+  return { buffer: Buffer.from(fileRes.data), mimeType: mime_type };
+}
+
 module.exports = {
   sendTextMessage,
   markMessageAsRead,
+  downloadMedia,
 };
