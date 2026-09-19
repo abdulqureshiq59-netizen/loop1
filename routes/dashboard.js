@@ -88,7 +88,8 @@ router.post('/api/conversations/:phone/mode', async (req, res) => {
     if (req.body.mode === 'ai') {
       conversationState.setPropertiesSuggested(req.params.phone, false);
       conversationState.setVisitScheduled(req.params.phone, false);
-      logger.info(`${req.params.phone} handed back to AI — reset properties-suggested/visit-scheduled flags for a fresh inquiry`);
+      conversationState.setHotAlerted(req.params.phone, false);
+      logger.info(`${req.params.phone} handed back to AI — reset properties-suggested/visit-scheduled/hot-alerted flags for a fresh inquiry`);
     }
 
     res.json({ success: true });
