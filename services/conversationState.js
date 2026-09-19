@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 const state = {}; // { [phone]: { mode: 'ai'|'human', messages: [], property: null, lead: null } }
 
 function getOrCreate(phone) {
-  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null, propertiesSuggested: false, visitScheduled: false };
+  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null, propertiesSuggested: false, visitScheduled: false, hotAlerted: false };
   return state[phone];
 }
 function setLead(phone, lead) { getOrCreate(phone).lead = lead; }
@@ -24,6 +24,19 @@ function setPropertiesSuggested(phone, value) { getOrCreate(phone).propertiesSug
 // on every later message in the same conversation.
 function getVisitScheduled(phone) { return getOrCreate(phone).visitScheduled; }
 function setVisitScheduled(phone, value) { getOrCreate(phone).visitScheduled = value; }
+
+// Same idea again, for the HOT-lead admin alert (2026-09-20). The DB `stage`
+// column only ever moves forward (computeAutoStage takes a max()), so once a
+// phone number has reached CALIENTE even once, it can never produce another
+// oldStage!==newStage transition into CALIENTE again — meaning the client's
+// requirement ("admin gets alerted whenever a lead comes in hot, regardless
+// of buy/rent/sell") would silently stop firing for any phone number that
+// re-engages after going cold, or that gets reused for a second, distinct
+// inquiry. This flag decouples the alert from the frozen stage column: it
+// fires once per conversation cycle and resets exactly when
+// propertiesSuggested/visitScheduled do — when the chat is handed back to AI.
+function getHotAlerted(phone) { return getOrCreate(phone).hotAlerted; }
+function setHotAlerted(phone, value) { getOrCreate(phone).hotAlerted = value; }
 
 function addMessage(phone, sender, text) {
   const c = getOrCreate(phone);
@@ -79,4 +92,4 @@ function getConversation(phone) { return getOrCreate(phone); }
   }
 })();
 
-module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, getPropertiesSuggested, setPropertiesSuggested, getVisitScheduled, setVisitScheduled };
+module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, getPropertiesSuggested, setPropertiesSuggested, getVisitScheduled, setVisitScheduled, getHotAlerted, setHotAlerted };
