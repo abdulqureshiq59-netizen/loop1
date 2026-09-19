@@ -185,7 +185,10 @@ async function maybeSuggestProperties(from, lead) {
       logger.info(`Skipping property suggestion for ${from}: flow not complete yet (zone=${lead.zone || "null"}, budget=${lead.budget || "null"}, postcode=${lead.postcode || "null"})`);
       return;
     }
-    if (conversationState.getPropertiesSuggested(from)) return;
+    if (conversationState.getPropertiesSuggested(from)) {
+      logger.info(`Skipping property suggestion for ${from}: already sent once this conversation (resets when the chat is handed back to AI from human mode)`);
+      return;
+    }
 
     const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
     logger.info(`Matching properties for ${from}: ${properties.length} properties + ${projects.length} projects loaded, criteria zone=${lead.zone} budget=${lead.budget} type=${lead.type || "any"} bedrooms=${lead.bedrooms || "any"} operation=${lead.operation || "any"}`);
