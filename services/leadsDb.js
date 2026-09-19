@@ -6,6 +6,7 @@
 // resumes auto-replying mid-negotiation without anyone noticing).
 const { Pool } = require('pg');
 const logger = require('../utils/logger');
+const adminNotify = require('./adminNotify');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -14,6 +15,24 @@ const pool = new Pool({
 
 const STAGE_ORDER = ["NUEVO", "CALIFICANDO", "CALIENTE", "CONTACTADO", "VISITA", "NEGOCIACION", "CERRADO"];
 const HUMAN_MANAGED_FROM_INDEX = 3;
+
+// Fires the client's requested admin WhatsApp alerts (2026-09-19: HOT lead,
+// visit scheduled — NOT every stage change) whenever a stage transition
+// actually crosses into one of those two stages. Called from every code
+// path that can change `stage` (auto-qualification, manual pipeline
+// drag/dropdown, and the VISITA bump from visit detection) so nothing
+// slips through depending on how the change happened. Deliberately not
+// awaited by callers — a slow/failed WhatsApp send should never delay or
+// break the stage update itself.
+async function notifyOnStageChange(phone, oldStage, newStage, leadRow = {}) {
+  if (oldStage === newStage) return;
+  if (newStage === 'CALIENTE' && oldStage !== 'CALIENTE') {
+    await adminNotify.notifyHotLead(phone, leadRow);
+  }
+  if (newStage === 'VISITA' && oldStage !== 'VISITA') {
+    await adminNotify.notifyVisitScheduled(phone, leadRow);
+  }
+}
 
 let initPromise = null;
 
@@ -108,6 +127,9 @@ async function upsertLead(phone, leadData) {
       ]
     );
     logger.info(`Lead upserted for ${phone} (stage: ${nextStage})`);
+    notifyOnStageChange(phone, currentStage, nextStage, leadData).catch(err => {
+      logger.error(`Failed to send admin notification for ${phone}:`, err.message);
+    });
   } catch (err) {
     logger.error('Error syncing lead to database:', err.message);
   }
@@ -127,11 +149,18 @@ async function getLeadByPhone(phone) {
 
 async function updateStage(phone, stage) {
   await ensureTable();
+  const existing = await pool.query('SELECT * FROM leads WHERE phone = $1', [phone]);
+  const oldStage = existing.rows[0]?.stage;
+
   const res = await pool.query(
     'UPDATE leads SET stage = $1, updated_at = now() WHERE phone = $2 RETURNING phone',
     [stage, phone]
   );
   if (res.rowCount === 0) throw new Error('Lead not found');
+
+  notifyOnStageChange(phone, oldStage, stage, existing.rows[0] || {}).catch(err => {
+    logger.error(`Failed to send admin notification for ${phone}:`, err.message);
+  });
 }
 
 // Moves a lead forward to targetStage, but only if it isn't already at or
@@ -144,7 +173,7 @@ async function bumpStageTo(phone, targetStage) {
   const targetIndex = STAGE_ORDER.indexOf(targetStage);
   if (targetIndex === -1) throw new Error(`Unknown stage: ${targetStage}`);
 
-  const existing = await pool.query('SELECT stage FROM leads WHERE phone = $1', [phone]);
+  const existing = await pool.query('SELECT * FROM leads WHERE phone = $1', [phone]);
   if (existing.rows.length === 0) {
     // No lead row yet (e.g. dashboard control taken before any message was
     // qualified) — create one directly at the target stage.
@@ -153,12 +182,19 @@ async function bumpStageTo(phone, targetStage) {
        ON CONFLICT (phone) DO NOTHING`,
       [phone, targetStage]
     );
+    notifyOnStageChange(phone, 'NUEVO', targetStage, {}).catch(err => {
+      logger.error(`Failed to send admin notification for ${phone}:`, err.message);
+    });
     return;
   }
   const currentIndex = STAGE_ORDER.indexOf(existing.rows[0].stage);
   if (currentIndex >= targetIndex) return; // already there or further along — don't move it backward
   await pool.query('UPDATE leads SET stage = $1, updated_at = now() WHERE phone = $2', [targetStage, phone]);
+  notifyOnStageChange(phone, existing.rows[0].stage, targetStage, existing.rows[0]).catch(err => {
+    logger.error(`Failed to send admin notification for ${phone}:`, err.message);
+  });
 }
+
 // --- mode (AI/Human) persistence ---
 
 async function setMode(phone, mode) {
