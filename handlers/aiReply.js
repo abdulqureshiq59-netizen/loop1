@@ -1,15 +1,45 @@
 const openai = require("../config/openai");
+const settingsDb = require("../services/settingsDb");
 const logger = require("../utils/logger");
 
 const conversations = {};
 
-// Reply language is controlled by BOT_LANGUAGE in .env — "es" (Spanish) or
-// "en" (English). Defaults to Spanish since that's what the real client
-// and their customers need. Set BOT_LANGUAGE=en in .env while YOU are
-// testing in English, but make sure it's back to "es" (or just remove the
-// line — es is the default) before this goes live for the client, or the
-// client's customers will get English replies again.
-const LANGUAGE = (process.env.BOT_LANGUAGE || "es").toLowerCase();
+// Reply language used to be fixed by BOT_LANGUAGE in .env at process start,
+// requiring a redeploy to switch between testing (English) and the real
+// client's customers (Spanish). Now editable live from the dashboard
+// (2026-09-20): the dashboard's toggle calls setLanguage(), which updates
+// this in-memory value immediately AND persists it to app_settings so it
+// survives a restart. BOT_LANGUAGE in .env is still read once at boot as
+// the initial default (in case the dashboard setting was never touched
+// yet), but after that the dashboard is the source of truth.
+const BOT_LANGUAGE_KEY = "bot_language";
+let LANGUAGE = (process.env.BOT_LANGUAGE || "es").toLowerCase();
+
+(async function hydrateLanguageFromDb() {
+  try {
+    const stored = await settingsDb.getSetting(BOT_LANGUAGE_KEY, "");
+    if (stored === "en" || stored === "es") {
+      LANGUAGE = stored;
+      logger.info(`Bot reply language restored from dashboard setting: "${LANGUAGE}"`);
+    }
+  } catch (err) {
+    logger.error("Failed to load bot language setting, keeping .env default:", err.message);
+  }
+})();
+
+function getLanguage() {
+  return LANGUAGE;
+}
+
+async function setLanguage(lang) {
+  const normalized = (lang || "").toLowerCase();
+  if (normalized !== "en" && normalized !== "es") {
+    throw new Error('language must be "en" or "es"');
+  }
+  LANGUAGE = normalized;
+  await settingsDb.setSetting(BOT_LANGUAGE_KEY, normalized);
+  logger.info(`Bot reply language changed to "${LANGUAGE}" via dashboard`);
+}
 
 // Static company info (from loopinmobiliaria.uy footer) — the AI previously
 // had no source of truth for this, so basic questions like "what's your
@@ -209,4 +239,4 @@ async function getAIReply(from, userText, property = null) {
   }
 }
 
-module.exports = { getAIReply, LANGUAGE };
+module.exports = { getAIReply, getLanguage, setLanguage };
