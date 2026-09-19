@@ -104,15 +104,33 @@ function qualifyLeadInBackground(from, text) {
 async function maybeSuggestProperties(from, lead) {
   try {
     if (!lead.operation || lead.operation === "venta") return; // sellers aren't looking for a property
-    if (!lead.zone || !lead.type || !lead.budget) return; // not enough to search yet
+
+    // NOTE: `type` is intentionally NOT required here even though it used
+    // to be. leadExtractor's "Caliente" classification only requires
+    // zone + budget + operation (not type) — so a lead can be fully
+    // qualified (CALIENTE) with lead.type still null, and this guard used
+    // to silently block property matching from ever running in that case
+    // (confirmed 2026-09-19: a full buy-flow test reached CALIENTE with
+    // zone=Pocitos/budget=500000/operation=compra but type never got
+    // filled by GPT, so no suggestion was ever sent and no log line for
+    // it appeared anywhere in the Render logs).
+    if (!lead.zone || !lead.budget) {
+      logger.info(`Skipping property suggestion for ${from}: missing zone or budget (zone=${lead.zone || "null"}, budget=${lead.budget || "null"})`);
+      return;
+    }
     if (conversationState.getPropertiesSuggested(from)) return;
 
     const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
+    logger.info(`Matching properties for ${from}: ${properties.length} properties + ${projects.length} projects loaded, criteria zone=${lead.zone} budget=${lead.budget} type=${lead.type || "any"} bedrooms=${lead.bedrooms || "any"}`);
     const matches = await matchProperties(
       { zone: lead.zone, budget: lead.budget, type: lead.type, bedrooms: lead.bedrooms },
       [...properties, ...projects]
     );
-    if (!matches.length) return;
+    if (!matches.length) {
+      logger.info(`No property matches found for ${from} against the given criteria`);
+      return;
+    }
+    logger.info(`Found ${matches.length} property match(es) for ${from}, sending top ${Math.min(3, matches.length)}`);
 
     const top = matches.slice(0, 3);
     const lines = top.map((p, i) => {
