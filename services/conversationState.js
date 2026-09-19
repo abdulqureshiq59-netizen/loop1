@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 const state = {}; // { [phone]: { mode: 'ai'|'human', messages: [], property: null, lead: null } }
 
 function getOrCreate(phone) {
-  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null, propertiesSuggested: false };
+  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null, propertiesSuggested: false, visitScheduled: false };
   return state[phone];
 }
 function setLead(phone, lead) { getOrCreate(phone).lead = lead; }
@@ -18,6 +18,12 @@ function getLead(phone) { return getOrCreate(phone).lead; }
 // send it once more), acceptable for this volume.
 function getPropertiesSuggested(phone) { return getOrCreate(phone).propertiesSuggested; }
 function setPropertiesSuggested(phone, value) { getOrCreate(phone).propertiesSuggested = value; }
+
+// Same idea, for visit detection (visitExtractor.js): once we've moved a
+// lead to VISITA and alerted the admin, don't keep re-detecting/re-alerting
+// on every later message in the same conversation.
+function getVisitScheduled(phone) { return getOrCreate(phone).visitScheduled; }
+function setVisitScheduled(phone, value) { getOrCreate(phone).visitScheduled = value; }
 
 function addMessage(phone, sender, text) {
   const c = getOrCreate(phone);
@@ -73,4 +79,4 @@ function getConversation(phone) { return getOrCreate(phone); }
   }
 })();
 
-module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, getPropertiesSuggested, setPropertiesSuggested };
+module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, getPropertiesSuggested, setPropertiesSuggested, getVisitScheduled, setVisitScheduled };
