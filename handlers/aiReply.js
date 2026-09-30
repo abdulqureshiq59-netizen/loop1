@@ -88,7 +88,7 @@ Real company info (use it directly if asked for address, phone, email, or websit
 - Email: ${COMPANY_INFO.email}
 - Website: ${COMPANY_INFO.website}
 
-Reply briefly, warmly, and professionally, in max ${cfg.maxLines} lines.
+Reply SHORT, like a person on WhatsApp: max ${cfg.maxLines} short lines (about 40 words), ONE question per message, no long lists, no repeating what the customer said, no filler phrases ("feel free to...", "don't hesitate...").
 ${cfg.greeting ? `If this is the start of the conversation (no previous messages from you), greet using this greeting, translated to English: "${cfg.greeting}"\n` : ""}Your goal is to understand if the client wants to BUY, RENT, INVEST, or SELL a property of their own — and gather the relevant details to qualify them. NEVER re-ask something already answered in the conversation (including earlier conversations above) or already known from the property data. If the customer is writing again after a while, recognize them and continue from what you already know.
 Never invent property details that weren't given to you.
 
@@ -119,7 +119,7 @@ Datos reales de la empresa (usalos directamente si preguntan por dirección, tel
 - Email: ${COMPANY_INFO.email}
 - Sitio web: ${COMPANY_INFO.website}
 
-Respondé de forma breve, cálida y profesional, en máximo ${cfg.maxLines} líneas.
+Respondé CORTO, como una persona por WhatsApp: máximo ${cfg.maxLines} líneas cortas (unas 40 palabras), UNA sola pregunta por mensaje, sin listas largas, sin repetir lo que dijo el cliente y sin frases de relleno ("no dudes en...", "si necesitás algo más...").
 ${cfg.greeting ? `Si es el inicio de la conversación (todavía no escribiste ningún mensaje), saludá usando este saludo: "${cfg.greeting}"\n` : ""}Tu objetivo es entender si el cliente quiere COMPRAR, ALQUILAR, INVERTIR, o VENDER una propiedad propia — y conseguir los datos relevantes para calificarlo. NUNCA vuelvas a preguntar algo que ya se respondió en la conversación (incluidas conversaciones anteriores que ves arriba) o que ya conocés por los datos de la propiedad. Si el cliente vuelve a escribir después de un tiempo, reconocelo y seguí desde lo que ya sabés.
 Nunca inventes detalles de una propiedad que no te fueron dados.
 
@@ -171,14 +171,24 @@ const TEXT = {
   },
 };
 
-function buildSystemPrompt(property, cfg) {
+// Knowledge the client adds from the dashboard ("Entrenar IA"). Goes after
+// the built-in knowledge and wins if they disagree (it's newer).
+function trainingBlock(entries, lang) {
+  if (!entries || !entries.length) return "";
+  const body = entries.map(e => `- ${e.title ? e.title + ": " : ""}${e.content}`).join("\n");
+  return lang === "en"
+    ? `\n=== EXTRA INFORMATION ADDED BY LOOP (in Spanish — it is newer: if it contradicts anything above, follow THIS) ===\n${body}\n`
+    : `\n=== INFORMACIÓN ADICIONAL CARGADA POR LOOP (es la más reciente: si contradice algo de arriba, seguí ESTO) ===\n${body}\n`;
+}
+
+function buildSystemPrompt(property, cfg, training = []) {
   const lang = LANGUAGE === "en" ? "en" : "es";
   const t = TEXT[lang];
   const rules = KNOWLEDGE_RULES[lang];
   // Knowledge base (client's 2026 training PDF) goes after the base
   // instructions and before the language line, so the language rule is
   // still the last thing the model reads.
-  const base = `${buildBasePrompt(cfg, lang)}\n${rules}\n${LOOP_KNOWLEDGE}\n\n${t.languageLine}`;
+  const base = `${buildBasePrompt(cfg, lang)}\n${rules}\n${LOOP_KNOWLEDGE}${trainingBlock(training, lang)}\n${t.languageLine}`;
 
   if (!property) {
     return `${base}\n${t.noProperty}`;
@@ -238,18 +248,20 @@ async function loadHistory(from, userText, lang) {
 async function getAIReply(from, userText, property = null) {
   const lang = LANGUAGE === "en" ? "en" : "es";
   try {
-    const cfg = await aiConfig.getConfig();
+    const [cfg, training] = await Promise.all([
+      aiConfig.getConfig(),
+      aiConfig.getTraining().catch(() => []),
+    ]);
     const history = await loadHistory(from, userText, lang);
-    const messages = [{ role: "system", content: buildSystemPrompt(property, cfg) }, ...history];
+    const messages = [{ role: "system", content: buildSystemPrompt(property, cfg, training) }, ...history];
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages,
       temperature: 0.7,
-      // Raised from 150 (2026-09-30): knowledge-base answers (costs,
-      // purchase steps, guarantees) can need 4-5 lines, and 150 tokens was
-      // cutting those off mid-sentence.
-      max_tokens: 300,
+      // Client (2026-10-01): shorter replies. 180 tokens fits ~3 short
+      // lines with margin, so a reply is never cut mid-sentence.
+      max_tokens: 180,
     });
 
     const reply = response.choices[0].message.content.trim();
