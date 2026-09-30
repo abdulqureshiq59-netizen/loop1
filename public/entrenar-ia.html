@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loop Inmobiliaria — Entrenar IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f3f4f8; --panel: #ffffff; --border: #e6e8f0;
+    --text: #1a1d29; --text-dim: #6b7280; --text-faint: #9ca3af;
+    --sidebar-bg: #14162a; --sidebar-bg-hover: #1e2138; --sidebar-bg-active: #2a2e52;
+    --sidebar-border: #24273f; --sidebar-text-dim: #7d8299;
+    --accent: #6d5ef8; --accent-dim: #6d5ef822; --accent-strong: #5a4be0;
+    --hot: #ef4a5f; --ok: #1f9d55; --warn: #c9821a;
+    --radius: 12px; --radius-sm: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); }
+
+  .topnav {
+    height: 58px; background: var(--sidebar-bg); border-bottom: 1px solid var(--sidebar-border);
+    display: flex; align-items: center; gap: 16px; padding: 0 20px; position: sticky; top: 0; z-index: 10;
+  }
+  .topnav .brand { display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 700; font-size: 1.05em; }
+  .topnav .brand .mark {
+    width: 30px; height: 30px; background: linear-gradient(135deg, var(--accent), #9b8cff);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  }
+  .topnav .navlinks { display: flex; gap: 4px; }
+  .topnav .navlinks a {
+    color: var(--sidebar-text-dim); text-decoration: none; font-size: 0.88em; font-weight: 600;
+    padding: 8px 14px; border-radius: 8px;
+  }
+  .topnav .navlinks a:hover { color: #fff; background: var(--sidebar-bg-hover); }
+  .topnav .navlinks a.active { color: #fff; background: var(--sidebar-bg-active); }
+
+  .page { max-width: 880px; margin: 0 auto; padding: 26px 16px 110px; }
+  h1 { font-size: 1.45em; letter-spacing: -0.01em; }
+  .lead { color: var(--text-dim); font-size: 0.92em; margin: 6px 0 22px; line-height: 1.55; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; margin-bottom: 18px;
+  }
+  .card h2 { font-size: 1.02em; margin-bottom: 4px; }
+  .card .hint { color: var(--text-dim); font-size: 0.85em; margin-bottom: 14px; line-height: 1.55; }
+
+  .knows { display: flex; flex-wrap: wrap; gap: 6px; }
+  .knows span { font-size: 0.78em; background: var(--bg); color: var(--text-dim); padding: 4px 10px; border-radius: 14px; font-weight: 600; }
+
+  .entry {
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px;
+    background: #fcfcfe;
+  }
+  .entry-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .entry-head input { flex: 1; font-weight: 700; }
+  input[type=text], textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 0.9em; font-family: inherit; background: #fff; color: var(--text); outline: none;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+  .entry-foot { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.72em; color: var(--text-faint); }
+
+  .btn {
+    padding: 9px 16px; border: none; border-radius: var(--radius-sm); cursor: pointer;
+    font-size: 0.85em; font-weight: 700; font-family: inherit;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-plain { background: var(--bg); color: var(--text); }
+  .btn-plain:hover { background: #e7e9f1; }
+  .btn-del { background: #fdecee; color: var(--hot); padding: 8px 12px; }
+  .btn-del:hover { background: var(--hot); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 16px; }
+  .examples button {
+    border: 1px dashed #c9c4fb; background: var(--accent-dim); color: var(--accent-strong);
+    border-radius: 16px; padding: 5px 11px; font-size: 0.78em; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .empty { text-align: center; color: var(--text-faint); font-size: 0.88em; padding: 18px 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+  th { text-align: left; color: var(--text-faint); font-size: 0.72em; text-transform: uppercase; letter-spacing: .05em; padding: 0 8px 8px; }
+  td { padding: 8px; border-top: 1px solid var(--border); vertical-align: middle; }
+  .st { font-size: 0.75em; font-weight: 700; white-space: nowrap; }
+  .st.ok { color: var(--ok); }
+  .st.warn { color: var(--warn); }
+  .muted { color: var(--text-faint); font-size: 0.8em; }
+
+  .savebar {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--border);
+    padding: 12px 16px; display: flex; justify-content: center; z-index: 5;
+  }
+  .savebar .inner { max-width: 880px; width: 100%; display: flex; align-items: center; gap: 10px; }
+  .savebar .status { flex: 1; font-size: 0.85em; color: var(--text-dim); }
+
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--sidebar-bg); color: #fff; padding: 11px 18px; border-radius: 10px;
+    font-size: 0.85em; font-weight: 600; opacity: 0; pointer-events: none; transition: all .2s; z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: var(--hot); }
+  @media (max-width: 640px) { .topnav .brand span.txt { display: none; } }
+</style>
+</head>
+<body>
+  <div class="topnav">
+    <div class="brand"><span class="mark">🏢</span> <span class="txt">Loop Inmobiliaria</span></div>
+    <div class="navlinks">
+      <a href="/dashboard">💬 Chats</a>
+      <a href="/pipeline">📋 Pipeline</a>
+      <a href="/entrenar-ia.html" class="active">🧠 Entrenar IA</a>
+    </div>
+  </div>
+
+  <div class="page">
+    <h1>Entrenar IA</h1>
+    <p class="lead">Escribí acá todo lo que la IA tiene que saber o cómo tiene que actuar, como se lo explicarías a un agente nuevo. Al guardar, la IA lo empieza a usar en los próximos mensajes (en unos segundos).</p>
+
+    <div class="card">
+      <h2>Lo que la IA ya sabe</h2>
+      <p class="hint">Cargado de la Capacitación 2026. No hace falta volver a escribirlo; si algo cambió, agregalo abajo y la IA va a usar lo nuevo.</p>
+      <div class="knows">
+        <span>Quiénes somos y valores</span><span>Oficina y contacto</span><span>Proceso con propietarios</span>
+        <span>Exclusividad</span><span>Comisiones</span><span>Boleto, compromiso y compraventa</span>
+        <span>Gastos de compraventa</span><span>Alquileres y garantías</span><span>Búsquedas</span>
+        <span>Rentabilidad e inversión</span><span>Propiedades de la web (en vivo)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Nuevos conocimientos e instrucciones</h2>
+      <p class="hint">Una entrada por tema. Escribí claro y concreto. Podés agregar información (“Las tasaciones son sin costo”) o instrucciones (“Si preguntan por locales comerciales, derivá a Juan”).</p>
+      <div class="examples">
+        <button onclick="addEntry('Tasaciones', 'Las tasaciones son sin costo. Si un propietario pregunta, ofrecé coordinar una visita para tasar.')">+ Ej: Tasaciones</button>
+        <button onclick="addEntry('Horario de atención', 'La oficina atiende de lunes a viernes de 9 a 18 h y sábados de 10 a 13 h.')">+ Ej: Horario</button>
+        <button onclick="addEntry('Mascotas en alquileres', 'Algunos propietarios aceptan mascotas: nunca lo confirmes; decí que el agente lo consulta con el dueño.')">+ Ej: Mascotas</button>
+      </div>
+      <div id="entries"></div>
+      <button class="btn btn-plain" onclick="addEntry()">+ Agregar entrada</button>
+    </div>
+
+    <div class="card">
+      <h2>Agentes y alertas</h2>
+      <p class="hint">Cuando la IA detecta de qué propiedad se trata, le manda una alerta por WhatsApp al agente responsable con todos los datos del cliente. Los agentes salen de la web; cargá el WhatsApp de cada uno con código de país (ej. 59899123456).<br>
+      Importante: WhatsApp solo entrega la alerta si ese número le escribió al número de Loop en las últimas 24 h.</p>
+      <table>
+        <thead><tr><th>Agente</th><th>Propiedades</th><th style="width:40%">WhatsApp</th><th>Estado</th></tr></thead>
+        <tbody id="agentsBody"><tr><td colspan="4" class="muted">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="savebar">
+    <div class="inner">
+      <div class="status" id="status">Cargando…</div>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveAll()" disabled>Guardar cambios</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+let entries = [];
+let agents = [];
+let dirty = false;
+
+function $(id) { return document.getElementById(id); }
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+let toastTimer = null;
+function showToast(text, isError) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function setDirty(v) {
+  dirty = v;
+  $('saveBtn').disabled = !v;
+  $('status').textContent = v ? 'Tenés cambios sin guardar' : 'Todo guardado ✓';
+}
+function fmtDate(v) {
+  return v ? new Date(v).toLocaleDateString('es-UY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+}
+
+function renderEntries() {
+  const el = $('entries');
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty">Todavía no agregaste nada. Usá “+ Agregar entrada” o uno de los ejemplos.</div>';
+    return;
+  }
+  el.innerHTML = entries.map((e, i) => `
+    <div class="entry">
+      <div class="entry-head">
+        <input type="text" data-i="${i}" data-f="title" value="${escapeHtml(e.title)}" placeholder="Tema (ej. Tasaciones)">
+        <button class="btn btn-del" onclick="removeEntry(${i})" title="Borrar">🗑</button>
+      </div>
+      <textarea data-i="${i}" data-f="content" placeholder="Qué tiene que saber o hacer la IA…">${escapeHtml(e.content)}</textarea>
+      <div class="entry-foot"><span>${e.updatedAt ? 'Guardado el ' + fmtDate(e.updatedAt) : 'Nuevo'}</span><span>${e.content.length}/3000</span></div>
+    </div>`).join('');
+  el.querySelectorAll('[data-i]').forEach(inp => inp.addEventListener('input', ev => {
+    const i = Number(ev.target.dataset.i);
+    entries[i][ev.target.dataset.f] = ev.target.value;
+    entries[i].updatedAt = new Date().toISOString();
+    if (ev.target.dataset.f === 'content') ev.target.parentElement.querySelector('.entry-foot span:last-child').textContent = ev.target.value.length + '/3000';
+    setDirty(true);
+  }));
+}
+
+function addEntry(title = '', content = '') {
+  entries.push({ id: String(Date.now()), title, content, updatedAt: '' });
+  renderEntries();
+  setDirty(true);
+  const boxes = document.querySelectorAll('#entries textarea');
+  const last = boxes[boxes.length - 1];
+  if (last) { last.focus(); last.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+}
+
+function removeEntry(i) {
+  if (!confirm('¿Borrar esta entrada? La IA dejará de usarla al guardar.')) return;
+  entries.splice(i, 1);
+  renderEntries();
+  setDirty(true);
+}
+
+function renderAgents() {
+  const body = $('agentsBody');
+  if (!agents.length) {
+    body.innerHTML = '<tr><td colspan="4" class="muted">No se encontraron agentes en las propiedades de la web.</td></tr>';
+    return;
+  }
+  body.innerHTML = agents.map((a, i) => {
+    let st;
+    if (a.phone) st = '<span class="st ok">✅ Recibe alertas</span>';
+    else if (a.naiPhone) st = `<span class="st ok">✅ Usa el número de la web (${escapeHtml(a.naiPhone)})</span>`;
+    else st = '<span class="st warn">⚠️ Sin número</span>';
+    return `
+    <tr>
+      <td><b>${escapeHtml(a.name)}</b></td>
+      <td class="muted">${a.properties || '—'}</td>
+      <td><input type="text" data-a="${i}" value="${escapeHtml(a.phone)}" placeholder="${a.naiPhone ? escapeHtml(a.naiPhone) : '59899123456'}"></td>
+      <td>${st}</td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('input').forEach(inp => inp.addEventListener('input', ev => {
+    agents[Number(ev.target.dataset.a)].phone = ev.target.value;
+    setDirty(true);
+  }));
+}
+
+async function load() {
+  try {
+    const [t, a] = await Promise.all([
+      fetch('/api/training').then(r => r.json()),
+      fetch('/api/agents').then(r => r.json()),
+    ]);
+    if (!t.success) throw new Error(t.error || 'no se pudo cargar');
+    entries = t.entries || [];
+    agents = a.success ? a.agents : [];
+    renderEntries();
+    renderAgents();
+    setDirty(false);
+  } catch (err) {
+    $('status').textContent = 'Error al cargar: ' + err.message;
+  }
+}
+
+async function saveAll() {
+  const bad = entries.findIndex(e => e.title.trim() && !e.content.trim());
+  if (bad !== -1) { showToast(`La entrada “${entries[bad].title}” no tiene contenido`, true); return; }
+  $('saveBtn').disabled = true;
+  $('status').textContent = 'Guardando…';
+  try {
+    const [t, a] = await Promise.all([
+      fetch('/api/training', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entries }) }).then(r => r.json()),
+      fetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agents }) }).then(r => r.json()),
+    ]);
+    if (!t.success) throw new Error(t.error || 'no se guardaron los conocimientos');
+    if (!a.success) throw new Error(a.error || 'no se guardaron los agentes');
+    await load();
+    showToast('¡Guardado! La IA ya lo usa en los próximos mensajes');
+  } catch (err) {
+    $('saveBtn').disabled = false;
+    $('status').textContent = 'Tenés cambios sin guardar';
+    showToast('No se pudo guardar: ' + err.message, true);
+  }
+}
+
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+load();
+</script>
+</body>
+</html>
