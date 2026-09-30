@@ -9,17 +9,66 @@ const { matchProperties } = require("../services/propertyMatcher");
 const { transcribeAudio } = require("../services/transcribeAudio");
 const { upsertLead } = require("../services/leadSync");
 const leadsDb = require("../services/leadsDb");
+const messagesDb = require("../services/messagesDb");
 const adminNotify = require("../services/adminNotify");
 const logger = require("../utils/logger");
 
 // A function, not a load-time constant (2026-09-20): language can now be
 // toggled live from the dashboard, so this must be re-evaluated on every
 // handoff instead of being frozen at whatever it was when the process
-// booted.
+// booted. Offers a call (training PDF 2026: "La importancia de la llamada").
 function getHandoffMessage() {
   return getLanguage() === "en"
-    ? "Understood — I'm connecting you with one of our agents now, they'll take it from here."
-    : "Entendido — te voy a conectar con uno de nuestros agentes, ellos van a continuar la conversación.";
+    ? "Understood — I'm connecting you with one of our agents now, they'll take it from here. If you'd rather get a call, tell me what time works best for you."
+    : "Entendido — te voy a conectar con uno de nuestros agentes, ellos van a continuar la conversación. Si preferís que te llamen, decime en qué horario te queda cómodo.";
+}
+
+// Messages for the background classifiers (lead extraction, visit
+// detection) now come from the DATABASE (2026-09-30). They used to read
+// conversationState's in-memory list, which is empty after every Render
+// restart — so after a restart the extractor only saw the newest message,
+// could downgrade a HOT lead to Frio, and the "checklist complete" gates
+// (postcode) never passed again for that customer.
+async function getTranscript(from, latestText, limit = 60) {
+  let rows = [];
+  try {
+    rows = await messagesDb.getMessages(from, limit);
+  } catch (err) {
+    logger.error(`Could not load transcript for ${from}, using in-memory copy:`, err.message);
+    rows = conversationState.getConversation(from).messages || [];
+  }
+  const lastCustomer = [...rows].reverse().find(m => m.sender === "customer");
+  if (latestText && !(lastCustomer && lastCustomer.text === latestText)) {
+    rows = [...rows, { sender: "customer", text: latestText, timestamp: new Date().toISOString() }];
+  }
+  return rows;
+}
+
+// Spec #4/#5: identify the property from a link / "propiedad #NN", and
+// never keep offering one that is no longer active.
+async function resolveProperty(from, text) {
+  const propId = extractPropertyId(text);
+  if (!propId) return;
+
+  const property = await findPropertyById(propId, text);
+  if (property) {
+    if (property.is_active === false) {
+      logger.info(`${from} asked about property #${propId}, which is NOT active (${property.status || "inactive"})`);
+      conversationState.setProperty(from, { ...property, unavailable: true });
+    } else {
+      conversationState.setProperty(from, property);
+    }
+    return;
+  }
+
+  // Not in the catalog at all. Only call it "no longer available" if the
+  // catalog actually loaded — if the NAI API is down we'd otherwise tell
+  // every customer that every property is gone.
+  const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
+  if (properties.length + projects.length > 0) {
+    logger.info(`${from} asked about property #${propId}, which is not in the live catalog — treating as unavailable`);
+    conversationState.setProperty(from, { prop_id: propId, title: "", zone: "", link: "", agent_name: "", unavailable: true });
+  }
 }
 
 async function handleIncomingMessage(message, from) {
@@ -59,20 +108,19 @@ async function handleIncomingMessage(message, from) {
     const currentMode = await leadsDb.getMode(from);
     if (currentMode === "human") {
       logger.info(`Mode is HUMAN for ${from} — AI stays silent`);
+      // Still keep the lead card up to date with what the customer says to
+      // the agent (no AI reply, no alerts re-fired — flags are already set).
+      if (type === "text") qualifyLeadInBackground(from, text, { silent: true });
       return;
     }
 
     if (type === "text") {
-      const propId = extractPropertyId(text);
-      if (propId) {
-        const property = await findPropertyById(propId, text);
-        if (property) conversationState.setProperty(from, property);
-      }
+      await resolveProperty(from, text);
     }
 
     // Spec #8/#11: auto-detect complaints, requests for a human, price
-    // negotiation, or high buying intent — hand off instead of letting the
-    // AI keep answering.
+    // negotiation, complex cases or high buying intent — hand off instead of
+    // letting the AI keep answering, and send the agent the whole context.
     if (type === "text") {
       const handoffResult = await checkHandoff(text);
       if (handoffResult.handoff) {
@@ -81,6 +129,7 @@ async function handleIncomingMessage(message, from) {
         conversationState.addMessage(from, "ai", handoffMessage);
         await sendTextMessage(from, handoffMessage);
         conversationState.setMode(from, "human");
+        notifyHandoffInBackground(from, text, handoffResult.reason);
         qualifyLeadInBackground(from, text);
         return;
       }
@@ -88,7 +137,9 @@ async function handleIncomingMessage(message, from) {
 
     const reply = type === "text"
       ? await getAIReply(from, text, conversationState.getProperty(from))
-      : "Got your message. An agent will follow up shortly.";
+      : (getLanguage() === "en"
+          ? "Got your message. An agent will follow up shortly."
+          : "Recibimos tu mensaje. Un agente te va a responder en breve.");
 
     conversationState.addMessage(from, "ai", reply);
     await sendTextMessage(from, reply);
@@ -101,64 +152,73 @@ async function handleIncomingMessage(message, from) {
   }
 }
 
-function qualifyLeadInBackground(from, text) {
-  const conv = conversationState.getConversation(from);
-  extractLeadInfo(conv.messages)
-    .then(async lead => {
-      if (!lead) return;
-      conversationState.setLead(from, lead);
-      const property = conversationState.getProperty(from);
-      await upsertLead(from, {
-        name: lead.name || "", channel: "WhatsApp",
-        operation: lead.operation || "", type: lead.type || "",
-        zone: lead.zone || "", bedrooms: lead.bedrooms || "",
-        bathrooms: lead.bathrooms || "",
-        budget: lead.budget || "", financing: lead.financing || "",
-        timeline: lead.timeline || "", temperature: lead.temperature || "Frio",
-        features: lead.features || "", address: lead.address || "", postcode: lead.postcode || "",
-        property_id: property ? property.prop_id : "",
-        agent_name: property ? property.agent_name : "",
-        last_message: text,
-      });
-      await maybeNotifyHotLead(from, lead);
-      await maybeSuggestProperties(from, lead);
-      await maybeMarkVisitScheduled(from, conv.messages, lead, property);
-    })
-    .catch(err => {
-      logger.error(`Background lead qualification failed for ${from}:`, err.message);
+// Handoff alert to admin + the property's responsible agent (spec #6/#11),
+// with everything known so far so nobody has to re-ask the customer.
+function notifyHandoffInBackground(from, text, reason) {
+  (async () => {
+    const [row, recent] = await Promise.all([
+      leadsDb.getLeadByPhone(from).catch(() => null),
+      getTranscript(from, text, 8),
+    ]);
+    const memLead = conversationState.getLead(from) || {};
+    const lead = { ...(row || {}) };
+    Object.entries(memLead).forEach(([k, v]) => { if (v !== null && v !== undefined && v !== "") lead[k] = v; });
+    const property = conversationState.getProperty(from);
+    const agentName = (property && property.agent_name) || lead.agent_name || "";
+    await adminNotify.notifyHandoff(from, { reason, lead, property, recent, agentName });
+  })().catch(err => logger.error(`Handoff alert failed for ${from}:`, err.message));
+}
+
+function qualifyLeadInBackground(from, text, { silent = false } = {}) {
+  (async () => {
+    const transcript = await getTranscript(from, text);
+    const lead = await extractLeadInfo(transcript);
+    if (!lead) return;
+    conversationState.setLead(from, lead);
+    const property = conversationState.getProperty(from);
+    await upsertLead(from, {
+      name: lead.name || "", channel: "WhatsApp",
+      operation: lead.operation || "", type: lead.type || "",
+      zone: lead.zone || "", bedrooms: lead.bedrooms || "",
+      bathrooms: lead.bathrooms || "",
+      budget: lead.budget || "", financing: lead.financing || "",
+      timeline: lead.timeline || "", temperature: lead.temperature || "Frio",
+      features: lead.features || "", address: lead.address || "", postcode: lead.postcode || "",
+      property_id: property ? property.prop_id : "",
+      agent_name: property ? property.agent_name : "",
+      property_link: (property && property.link) || lead.property_link || "",
+      last_message: text,
     });
+    if (silent) return; // human mode: keep the card updated, but don't message anyone
+    await maybeNotifyHotLead(from, lead);
+    await maybeSuggestProperties(from, lead);
+    await maybeMarkVisitScheduled(from, transcript, lead, property);
+  })().catch(err => {
+    logger.error(`Background lead qualification failed for ${from}:`, err.message);
+  });
 }
 
 // Client requirement (2026-09-20): admin gets a WhatsApp alert whenever a
-// lead comes in HOT — no matter the operation (buy/rent/sell/invest). This
-// used to live entirely inside leadsDb.js's notifyOnStageChange, fired only
-// when the DB `stage` column actually transitions into CALIENTE. Problem:
-// `stage` only ever moves forward (computeAutoStage takes a max() of the
-// existing and candidate index), so once a phone number has been CALIENTE
-// once, that column can never produce that transition again — a second,
-// genuinely distinct hot inquiry on the same phone (e.g. re-tested after
-// handing the chat back to AI) would never re-alert the admin, even though
-// it's a fresh lead in every practical sense. This check is independent of
-// `stage` and gated only by conversationState.hotAlerted, which resets
-// exactly when propertiesSuggested/visitScheduled do (chat handed back to
-// AI = fresh inquiry cycle) — so it re-fires correctly for a genuinely new
-// inquiry instead of going silent forever after the first one.
+// lead comes in HOT — no matter the operation (buy/rent/sell/invest). Gated
+// by conversationState.hotAlerted (resets when the chat is handed back to
+// AI = fresh inquiry cycle) instead of the forward-only DB `stage` column,
+// which can never re-produce a CALIENTE transition for a returning number.
 //
-// Gate added 2026-09-20: "Caliente" by itself (leadExtractor.js) only needs
-// zone + budget + operation — it does NOT mean the checklist is finished.
-// Client reported getting an admin alert with just name/zone/budget/operation
-// and no contact details yet, which is too early to be useful (admin can't
-// even follow up). Now requires the same "checklist actually complete" gate
-// as maybeSuggestProperties: name + postcode present (postcode is the last
-// field the AI asks for before handing off), so the alert only fires once
-// there's enough info for the admin to act on.
+// Also gated on name + postcode (2026-09-20): "Caliente" alone only needs
+// zone + budget + operation, which is too early for the admin to act on.
+// Postcode is the last checklist field, so this fires once qualification
+// is actually complete. Since 2026-09-30 it also goes to the responsible
+// agent (spec #6: "derivarle el lead").
 async function maybeNotifyHotLead(from, lead) {
   try {
     if (lead?.temperature !== "Caliente") return;
     if (!lead.name || !lead.postcode) return;
     if (conversationState.getHotAlerted(from)) return;
     conversationState.setHotAlerted(from, true);
-    await adminNotify.notifyHotLead(from, lead);
+    const row = await leadsDb.getLeadByPhone(from).catch(() => null);
+    const property = conversationState.getProperty(from);
+    const agentName = (property && property.agent_name) || (row && row.agent_name) || "";
+    await adminNotify.notifyHotLead(from, { ...lead, property_link: lead.property_link || (row && row.property_link) || "" }, agentName);
   } catch (err) {
     logger.error(`Hot-lead alert failed for ${from}:`, err.message);
   }
@@ -166,11 +226,9 @@ async function maybeNotifyHotLead(from, lead) {
 
 // Client requirement (2026-09-19): when the customer confirms they want an
 // in-person/on-site visit AND gives a day/time, move the lead straight to
-// the VISITA pipeline stage and alert the admin — instead of relying on an
-// agent to notice this in the chat and drag the pipeline card manually.
-// Runs on every message like the other background qualification steps, but
-// is gated by conversationState.visitScheduled so it only ever fires once
-// per conversation.
+// the VISITA pipeline stage and alert the admin + responsible agent.
+// Gated by conversationState.visitScheduled so it fires once per
+// conversation cycle.
 async function maybeMarkVisitScheduled(from, messages, lead, property) {
   try {
     if (conversationState.getVisitScheduled(from)) return;
@@ -179,21 +237,19 @@ async function maybeMarkVisitScheduled(from, messages, lead, property) {
     if (!visitConfirmed) return;
 
     conversationState.setVisitScheduled(from, true);
-    await leadsDb.bumpStageTo(from, "VISITA");
+    // notify:false — the detailed alert below replaces the generic
+    // stage-change alert (used to send the admin two alerts per visit).
+    await leadsDb.bumpStageTo(from, "VISITA", { notify: false });
     logger.info(`Visit scheduled detected for ${from}${visitWhen ? ` (${visitWhen})` : ""} — moved to VISITA`);
 
-    // bumpStageTo already sends the admin alert on the CALIENTE/VISITA
-    // transition itself (services/leadsDb.js -> notifyOnStageChange), but
-    // that alert only has whatever was already in the leads row (e.g. the
-    // customer's own address, not the property's, and no visitWhen at
-    // all). Send a second, more specific alert with what this classifier
-    // actually extracted, so the admin isn't left guessing the day/time.
+    const row = await leadsDb.getLeadByPhone(from).catch(() => null);
     await adminNotify.notifyVisitScheduled(from, {
       name: lead?.name || "",
       visitWhen: visitWhen || "",
-      property: property ? `${property.title} (${property.zone})` : "",
-      link: property ? property.link : "",
-      property_id: property ? property.prop_id : (lead?.property_id || ""),
+      property: property && property.title ? `${property.title} (${property.zone})` : "",
+      link: property ? property.link : (row && row.property_link) || "",
+      property_id: property ? property.prop_id : (row && row.property_id) || "",
+      agent_name: (property && property.agent_name) || (row && row.agent_name) || "",
     });
   } catch (err) {
     logger.error(`Visit detection failed for ${from}:`, err.message);
@@ -202,28 +258,16 @@ async function maybeMarkVisitScheduled(from, messages, lead, property) {
 
 // Spec #4/#5: once we know enough about what the customer (buyer/renter/
 // investor — not a seller, who isn't looking for a property) wants, search
-// the real NAI catalog and actually send them matches, instead of the AI
-// just chatting about wanting to help and never looking anything up. Sent
-// at most once per conversation (conversationState.propertiesSuggested)
-// so this doesn't re-fire and resend the same list on every later message.
+// the real NAI catalog (ACTIVE listings only, see propertyMatcher) and send
+// them matches. Sent at most once per conversation cycle.
 async function maybeSuggestProperties(from, lead) {
   try {
     if (!lead.operation || lead.operation === "venta") return; // sellers aren't looking for a property
 
-    // `type` is intentionally NOT required (see 2026-09-19 note below), but
-    // `postcode` IS required — it's the last field in every checklist
-    // (aiReply.js), right before the AI hands off. Requiring it means the
-    // suggestion message only goes out once the whole flow is done, not
-    // mid-conversation right after bedrooms/bathrooms — which is what was
-    // happening before: the customer got the property list AND THEN the AI
-    // kept asking financing/timeline questions afterwards, because the
-    // suggestion (background, async) and the main AI reply (immediate)
-    // don't know about each other and postcode wasn't required as a gate.
-    //
-    // `type` note (2026-09-19): leadExtractor's "Caliente" classification
-    // only requires zone + budget + operation (not type) — so a lead can be
-    // fully qualified with lead.type still null, and requiring it here used
-    // to silently block property matching from ever running in that case.
+    // `postcode` is required — it's the last field in every checklist, so
+    // suggestions only go out once the whole flow is done (not mid-flow,
+    // which made the AI keep asking questions after the list was sent).
+    // `type` is intentionally NOT required — "Caliente" doesn't need it.
     if (!lead.zone || !lead.budget || !lead.postcode) {
       logger.info(`Skipping property suggestion for ${from}: flow not complete yet (zone=${lead.zone || "null"}, budget=${lead.budget || "null"}, postcode=${lead.postcode || "null"})`);
       return;
@@ -268,6 +312,7 @@ async function maybeSuggestProperties(from, lead) {
     await upsertLead(from, {
       property_id: top[0].prop_id,
       agent_name: top[0].agent_name || "",
+      property_link: top[0].link || "",
     });
   } catch (err) {
     logger.error(`Property matching failed for ${from}:`, err.message);
