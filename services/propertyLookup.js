@@ -10,7 +10,10 @@ const NAI_API_BASE = process.env.NAI_API_BASE || 'https://app.nai.com.uy/api';
 const NAI_API_KEY = process.env.NAI_API_KEY;
 const PAGE_LIMIT = 100;
 
-let cache = { properties: null, projects: null, fetchedAt: 0 };
+// Separate timestamps (2026-09-30): both lists used to share one fetchedAt,
+// so refreshing properties silently reset the projects' expiry too and the
+// projects list could stay stale indefinitely.
+let cache = { properties: null, projects: null, propertiesAt: 0, projectsAt: 0 };
 const CACHE_MS = 5 * 60 * 1000;
 
 // Field names below were verified against a real /propiedades response
@@ -56,6 +59,28 @@ function formatPrice(price, currency) {
   return currency ? `${currency} ${formatted}` : String(formatted);
 }
 
+// Spec #4: "Una propiedad que deje de estar activa no debe continuar siendo
+// ofrecida por la IA." NAI doesn't have one single "active" flag we've
+// verified, so this checks every signal we've seen or that NAI commonly
+// uses: a status text like Vendida/Alquilada/Reservada/Suspendida/Baja, an
+// explicit publicada/activa = "No", or a listing that is rented AND no
+// longer for sale. Anything we can't read is treated as active (better to
+// show a listing than hide the whole catalog on an unknown field).
+const INACTIVE_WORDS = ['vendid', 'alquilad', 'reservad', 'suspendid', 'inactiv', 'baja', 'retirad', 'pausad', 'no disponible'];
+
+function isActive(raw) {
+  const status = String(raw.estado || raw.status || '').toLowerCase();
+  if (status && INACTIVE_WORDS.some(w => status.includes(w))) return false;
+  if (raw.publicada === 'No' || raw.activa === 'No' || raw.activo === 'No' || raw.publicado === 'No') return false;
+  if (raw.vendida === 'Si' || raw.reservada === 'Si') return false;
+  // Rented out and not also on sale -> nothing left to offer.
+  if (raw.alquilada === 'Si' && raw.en_venta !== 'Si') return false;
+  // Neither on sale nor for rent -> not offerable (only when NAI actually
+  // sends those fields; projects may not have them at all).
+  if (raw.en_venta === 'No' && raw.en_alquiler === 'No') return false;
+  return true;
+}
+
 function normalizeProperty(raw, isProject) {
   const { price, currency } = pickPrice(raw);
   return {
@@ -77,6 +102,7 @@ function normalizeProperty(raw, isProject) {
     operation: pickOperation(raw),
     agent_name: (raw.vendedor && raw.vendedor.contact) || raw.agente || raw.responsable || '',
     is_project: !!isProject,
+    is_active: isActive(raw),
     _raw: raw,
   };
 }
@@ -102,7 +128,7 @@ async function fetchAll(endpoint, isProject) {
       hasMore = !!pag.has_more;
       offset += PAGE_LIMIT;
     }
-    logger.info(`Fetched ${all.length} ${endpoint} from NAI API`);
+    logger.info(`Fetched ${all.length} ${endpoint} from NAI API (${all.filter(p => p.is_active).length} active)`);
     return all;
   } catch (err) {
     logger.error(`Error fetching ${endpoint} from NAI API:`, err.response?.data || err.message);
@@ -112,11 +138,11 @@ async function fetchAll(endpoint, isProject) {
 
 async function getAllProperties() {
   const now = Date.now();
-  if (cache.properties && (now - cache.fetchedAt) < CACHE_MS) return cache.properties;
+  if (cache.properties && (now - cache.propertiesAt) < CACHE_MS) return cache.properties;
   const fresh = await fetchAll('propiedades', false);
   if (fresh) {
     cache.properties = fresh;
-    cache.fetchedAt = now;
+    cache.propertiesAt = now;
     return fresh;
   }
   return cache.properties || [];
@@ -124,11 +150,11 @@ async function getAllProperties() {
 
 async function getAllProjects() {
   const now = Date.now();
-  if (cache.projects && (now - cache.fetchedAt) < CACHE_MS) return cache.projects;
+  if (cache.projects && (now - cache.projectsAt) < CACHE_MS) return cache.projects;
   const fresh = await fetchAll('proyectos', true);
   if (fresh) {
     cache.projects = fresh;
-    cache.fetchedAt = now;
+    cache.projectsAt = now;
     return fresh;
   }
   return cache.projects || [];
@@ -161,4 +187,14 @@ async function findPropertyById(id, text = '') {
       || null;
 }
 
-module.exports = { getAllProperties, getAllProjects, extractPropertyId, findPropertyById };
+// Unique list of responsible-agent names across the live catalog — used by
+// logging / future use: the exact agent names to copy into
+// AGENT_PHONES in services/aiConfig.js.
+async function getAgentNames() {
+  const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
+  const names = new Set();
+  [...properties, ...projects].forEach(p => { if (p.agent_name) names.add(String(p.agent_name).trim()); });
+  return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b));
+}
+
+module.exports = { getAllProperties, getAllProjects, extractPropertyId, findPropertyById, getAgentNames, isActive };
