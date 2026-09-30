@@ -11,6 +11,7 @@ const logger = require('../utils/logger');
 const HANDOFF_PROMPT = `You are a classifier for a real estate WhatsApp bot (Loop Inmobiliaria, Uruguay). Given the customer's latest message (it may be in Spanish, English, or another language), decide if this conversation should be handed off to a human agent right now.
 
 Reply with ONLY valid JSON: {"handoff": true|false, "reason": string|null}
+"reason" must be a SHORT phrase IN SPANISH (it is shown to Loop's agents), e.g. "pidió hablar con una persona", "reclamo", "negociación de precio", "quiere cerrar/visitar ya".
 
 Set handoff:true if the message:
 - explicitly asks to talk to a person/human/agent
