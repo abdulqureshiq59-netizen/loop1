@@ -15,11 +15,13 @@ const EXTRACTION_PROMPT = `Extract real estate lead info from this conversation.
   "features": string or null,
   "address": string or null,
   "postcode": string or null,
+  "property_link": string or null,
   "temperature": "Caliente" | "Tibio" | "Frio"
 }
 If operation is "venta" (the customer wants to sell their own property, not buy/rent/invest), still use the "budget" field for the expected sale price they mention, and "zone" for the property's location.
 "features" is any specific area, feature, or extra detail about the property the customer mentioned (e.g. "tiene patio", "cerca de la playa", "piso alto") — free text, not a fixed list.
 "address" and "postcode" are the customer's own personal address/postcode (for follow-up), not the property's.
+"property_link" is the most recent URL of a property listing the CUSTOMER sent (Loop's site or any other portal/social network), copied exactly — null if the customer never sent one.
 Temperature rules: "Caliente" if budget AND zone AND operation are all known. "Tibio" if at least one concrete detail is known. "Frio" if it's just a greeting with no real info.
 Only fill fields you're confident about from what was actually said — never guess, use null instead.`;
 
@@ -33,7 +35,7 @@ async function extractLeadInfo(messages) {
         { role: 'user', content: transcript },
       ],
       temperature: 0,
-      max_tokens: 200,
+      max_tokens: 300,
       response_format: { type: 'json_object' },
     });
     return JSON.parse(response.choices[0].message.content);
