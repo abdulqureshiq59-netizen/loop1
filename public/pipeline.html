@@ -78,6 +78,12 @@
   .topnav .navlinks a:hover { color: #fff; background: var(--sidebar-bg-hover); }
   .topnav .navlinks a.active { color: #fff; background: var(--sidebar-bg-active); }
   .topnav .summary { color: var(--sidebar-text-dim); font-size: 0.82em; font-weight: 500; }
+  .pfilters { display: flex; align-items: center; gap: 8px; }
+  .pfilters select {
+    padding: 6px 9px; border: 1px solid var(--sidebar-border); border-radius: 8px;
+    background: var(--sidebar-bg-hover); color: #fff; font-size: 0.78em; font-family: inherit; outline: none;
+  }
+  .card-agent { font-size: 0.7em; color: var(--text-dim); margin-bottom: 6px; }
 
   .board {
     display: flex; gap: 14px; padding: 18px;
@@ -152,7 +158,11 @@
       <a href="/dashboard">💬 Chats</a>
       <a href="/pipeline" class="active">📋 Pipeline</a>
     </div>
-    <div class="summary" id="summary">Loading…</div>
+    <div class="pfilters">
+      <select id="fAgent" title="Agent"><option value="">All agents</option></select>
+      <select id="fChannel" title="Channel"><option value="">All channels</option></select>
+      <span class="summary" id="summary">Loading…</span>
+    </div>
   </div>
 
   <div class="board" id="board"></div>
@@ -188,7 +198,8 @@ async function load() {
   leadsByPhone = {};
   r.data.forEach(l => leadsByPhone[l.phone] = l);
 
-  const signature = JSON.stringify(r.data.map(l => [l.phone, l.stage, l.temperature, l.last_message, l.name]));
+  refreshFilterOptions(r.data);
+  const signature = JSON.stringify([filterSig(), r.data.map(l => [l.phone, l.stage, l.temperature, l.last_message, l.name, l.agent_name])]);
   if (signature === lastSignature) {
     updateSummary(r.data);
     return; // nothing changed — don't touch the DOM (keeps scroll position + hover state stable)
@@ -196,6 +207,31 @@ async function load() {
   lastSignature = signature;
   render(r.data);
 }
+
+// Spec #8: "Visualizar oportunidades por agente, propiedad, origen y etapa".
+function filterSig() {
+  return document.getElementById('fAgent').value + '|' + document.getElementById('fChannel').value;
+}
+function applyFilters(leads) {
+  const a = document.getElementById('fAgent').value;
+  const c = document.getElementById('fChannel').value;
+  return leads.filter(l => (!a || (l.agent_name || '(none)') === a) && (!c || (l.channel || 'WhatsApp') === c));
+}
+function fillSelect(id, label, values) {
+  const sel = document.getElementById(id);
+  const sig = values.join('|');
+  if (sel.dataset.sig === sig) return;
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">${label}</option>` + values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  sel.dataset.sig = sig;
+  sel.value = values.includes(cur) ? cur : '';
+}
+function refreshFilterOptions(leads) {
+  fillSelect('fAgent', 'All agents', [...new Set(leads.map(l => l.agent_name || '(none)'))].sort());
+  fillSelect('fChannel', 'All channels', [...new Set(leads.map(l => l.channel || 'WhatsApp'))].sort());
+}
+document.getElementById('fAgent').addEventListener('change', () => { lastSignature = null; render(Object.values(leadsByPhone)); });
+document.getElementById('fChannel').addEventListener('change', () => { lastSignature = null; render(Object.values(leadsByPhone)); });
 
 function updateSummary(leads) {
   const hot = leads.filter(l => l.temperature === 'Caliente').length;
@@ -206,7 +242,8 @@ function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-function render(leads) {
+function render(allLeads) {
+  const leads = applyFilters(allLeads);
   const board = document.getElementById('board');
   board.innerHTML = '';
   updateSummary(leads);
@@ -249,6 +286,7 @@ function makeCard(l, stage) {
   card.innerHTML = `
     <div class="card-name">${escapeHtml(l.name || l.phone)}</div>
     <div class="card-sub">${escapeHtml(l.channel || 'WhatsApp')} ${l.property_id ? '· prop #' + escapeHtml(l.property_id) : ''}</div>
+    ${l.agent_name ? `<div class="card-agent">👤 ${escapeHtml(l.agent_name)}</div>` : ''}
     <div class="card-tags">
       ${l.temperature ? `<span class="tag temp-${l.temperature}">${TEMP_LABELS[l.temperature] || l.temperature}</span>` : ''}
       ${l.zone ? `<span class="tag">${escapeHtml(l.zone)}</span>` : ''}
