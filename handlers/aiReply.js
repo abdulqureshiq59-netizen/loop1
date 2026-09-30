@@ -246,4 +246,11 @@ async function getAIReply(from, userText, property = null) {
   }
 }
 
-module.exports = { getAIReply, getLanguage, setLanguage };
+// Forget the AI's own chat memory for a phone (admin "delete chat").
+// Without this the deleted conversation would still be in the OpenAI
+// context the next time that number writes in.
+function clearConversationHistory(from) {
+  delete conversations[from];
+}
+
+module.exports = { getAIReply, getLanguage, setLanguage, clearConversationHistory };
