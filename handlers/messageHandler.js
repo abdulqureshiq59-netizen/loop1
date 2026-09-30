@@ -19,8 +19,8 @@ const logger = require("../utils/logger");
 // booted. Offers a call (training PDF 2026: "La importancia de la llamada").
 function getHandoffMessage() {
   return getLanguage() === "en"
-    ? "Understood — I'm connecting you with one of our agents now, they'll take it from here. If you'd rather get a call, tell me what time works best for you."
-    : "Entendido — te voy a conectar con uno de nuestros agentes, ellos van a continuar la conversación. Si preferís que te llamen, decime en qué horario te queda cómodo.";
+    ? "Got it! An agent will contact you shortly. Would you prefer a call? Tell me what time suits you."
+    : "¡Perfecto! Un agente te va a contactar en breve. ¿Preferís que te llamen? Decime qué horario te queda cómodo.";
 }
 
 // Messages for the background classifiers (lead extraction, visit
@@ -57,6 +57,7 @@ async function resolveProperty(from, text) {
       conversationState.setProperty(from, { ...property, unavailable: true });
     } else {
       conversationState.setProperty(from, property);
+      notifyPropertyAgentInBackground(from, property, text);
     }
     return;
   }
@@ -152,6 +153,27 @@ async function handleIncomingMessage(message, from) {
   }
 }
 
+// Client (2026-10-01): "siempre que detecte de quién es la propiedad, que
+// mande la alerta con toda la información al AGENTE correspondiente".
+// Fires once per property per conversation cycle, as soon as the property
+// is identified (link / number) or suggested — then the agent gets the
+// HOT / visit / handoff alerts for the same lead later on.
+function notifyPropertyAgentInBackground(from, property, text, { suggested = false } = {}) {
+  if (!property || !property.prop_id) return;
+  if (conversationState.wasPropertyAlerted(from, property.prop_id)) return;
+  conversationState.markPropertyAlerted(from, property.prop_id);
+  (async () => {
+    const [row, recent] = await Promise.all([
+      leadsDb.getLeadByPhone(from).catch(() => null),
+      getTranscript(from, text, 6),
+    ]);
+    const lead = { ...(row || {}) };
+    const mem = conversationState.getLead(from) || {};
+    Object.entries(mem).forEach(([k, v]) => { if (v !== null && v !== undefined && v !== "") lead[k] = v; });
+    await adminNotify.notifyPropertyInquiry(from, { property, lead, recent, suggested });
+  })().catch(err => logger.error(`Property-agent alert failed for ${from}:`, err.message));
+}
+
 // Handoff alert to admin + the property's responsible agent (spec #6/#11),
 // with everything known so far so nobody has to re-ask the customer.
 function notifyHandoffInBackground(from, text, reason) {
@@ -165,7 +187,8 @@ function notifyHandoffInBackground(from, text, reason) {
     Object.entries(memLead).forEach(([k, v]) => { if (v !== null && v !== undefined && v !== "") lead[k] = v; });
     const property = conversationState.getProperty(from);
     const agentName = (property && property.agent_name) || lead.agent_name || "";
-    await adminNotify.notifyHandoff(from, { reason, lead, property, recent, agentName });
+    const agentPhoneHint = (property && property.agent_phone) || "";
+    await adminNotify.notifyHandoff(from, { reason, lead, property, recent, agentName, agentPhoneHint });
   })().catch(err => logger.error(`Handoff alert failed for ${from}:`, err.message));
 }
 
@@ -218,7 +241,13 @@ async function maybeNotifyHotLead(from, lead) {
     const row = await leadsDb.getLeadByPhone(from).catch(() => null);
     const property = conversationState.getProperty(from);
     const agentName = (property && property.agent_name) || (row && row.agent_name) || "";
-    await adminNotify.notifyHotLead(from, { ...lead, property_link: lead.property_link || (row && row.property_link) || "" }, agentName);
+    await adminNotify.notifyHotLead(
+      from,
+      { ...lead, property_link: lead.property_link || (row && row.property_link) || "" },
+      agentName,
+      (property && property.agent_phone) || "",
+      property && !property.unavailable ? property : null
+    );
   } catch (err) {
     logger.error(`Hot-lead alert failed for ${from}:`, err.message);
   }
@@ -250,6 +279,7 @@ async function maybeMarkVisitScheduled(from, messages, lead, property) {
       link: property ? property.link : (row && row.property_link) || "",
       property_id: property ? property.prop_id : (row && row.property_id) || "",
       agent_name: (property && property.agent_name) || (row && row.agent_name) || "",
+      agent_phone: (property && property.agent_phone) || "",
     });
   } catch (err) {
     logger.error(`Visit detection failed for ${from}:`, err.message);
@@ -296,11 +326,11 @@ async function maybeSuggestProperties(from, lead) {
       return `${i + 1}. ${p.title} — ${price} (${p.link})`;
     });
     const intro = language === "en"
-      ? "Here are a few properties that match what you're looking for:"
-      : "¡Encontramos estas propiedades que podrían interesarte!";
+      ? "These properties match what you're looking for:"
+      : "Estas propiedades coinciden con lo que buscás:";
     const outro = language === "en"
-      ? `An agent (${top[0].agent_name || "the assigned agent"}) will follow up with more details.`
-      : `Un agente (${top[0].agent_name || "el agente asignado"}) va a seguir con más detalles.`;
+      ? `${top[0].agent_name || "An agent"} will contact you with more details.`
+      : `${top[0].agent_name || "Un agente"} te va a contactar con más detalles.`;
     const message = `${intro}\n\n${lines.join("\n")}\n\n${outro}`;
 
     conversationState.addMessage(from, "ai", message);
@@ -314,6 +344,9 @@ async function maybeSuggestProperties(from, lead) {
       agent_name: top[0].agent_name || "",
       property_link: top[0].link || "",
     });
+
+    // Each suggested property's agent gets the lead too (once per property).
+    top.forEach(p => notifyPropertyAgentInBackground(from, p, "", { suggested: true }));
   } catch (err) {
     logger.error(`Property matching failed for ${from}:`, err.message);
   }
