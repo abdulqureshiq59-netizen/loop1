@@ -41,6 +41,8 @@ async function matchProperties(customerPreferences, allProperties) {
     const { operation } = customerPreferences;
 
     let matched = allProperties.filter(prop => {
+      // Spec #4: never suggest a sold / rented / paused listing.
+      if (prop.is_active === false) return false;
       if (!operationMatches(operation, prop.operation)) return false;
       if (!budgetMatches(customerPreferences.budget, prop.price)) return false;
       return calculateScore(prop, customerPreferences) > 0;
