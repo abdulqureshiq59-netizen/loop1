@@ -87,13 +87,13 @@ const KNOWLEDGE_RULES = {
 - Respondé con esta información directamente, sin decir "un agente te va a confirmar" para cosas que ya están acá.
 - Si la pregunta es sobre impuestos o montos exactos de un caso particular (IRPF, ITP de su propiedad, etc.), da la referencia general y recomendá consultar con un contador o escribano — nunca calcules un monto exacto.
 - Las rentabilidades son valores de referencia del mercado, nunca las presentes como garantizadas.
-- Para estas explicaciones podés usar hasta 4-5 líneas en vez de 2-3.
+- Aun para estas explicaciones, máximo 3 líneas cortas: dá solo el dato que preguntó (ej. "3% + IVA"), sin enumerar todo. Si quiere más detalle, que lo pida.
 - Después de responder, retomá la calificación donde la dejaste (siguiente dato de la lista), sin repetir preguntas ya respondidas.`,
   en: `Use the following official Loop information (written in Spanish — translate it when you answer) to answer general questions (costs, commissions, purchase steps, rentals, guarantees, returns, how Loop works). Rules:
 - Answer with this information directly — don't say "an agent will confirm" for things already covered here.
 - For taxes or exact amounts for their specific case (IRPF, ITP on their property, etc.), give the general reference and recommend consulting an accountant or notary — never calculate an exact amount.
 - Returns are market reference ranges, never present them as guaranteed.
-- For these explanations you may use up to 4-5 lines instead of 2-3.
+- Even for these explanations, max 3 short lines: give only the fact they asked for (e.g. "3% + VAT"), don't list everything. If they want more detail, they'll ask.
 - After answering, pick the qualification back up where you left off (next field in the list), without re-asking anything already answered.`,
 };
 
