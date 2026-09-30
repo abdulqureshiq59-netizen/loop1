@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Loop Inmobiliaria — Dashboard</title>
+<title>Loop Inmobiliaria — Chats</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -560,16 +560,17 @@
     <div class="navlinks">
       <a href="/dashboard" class="active">💬 Chats</a>
       <a href="/pipeline">📋 Pipeline</a>
+      <a href="/entrenar-ia.html">🧠 Entrenar IA</a>
     </div>
     <div class="spacer"></div>
     <div class="admin-config">
-      <label>🔔 Admin alerts:</label>
-      <input type="text" id="adminPhoneInput" placeholder="e.g. 59899xxxxxx">
-      <button onclick="saveAdminPhone()">Save</button>
+      <label>🔔 Alertas al admin:</label>
+      <input type="text" id="adminPhoneInput" placeholder="ej. 59899xxxxxx">
+      <button onclick="saveAdminPhone()">Guardar</button>
       <span class="saved-tick" id="adminPhoneSaved">✓</span>
     </div>
     <div class="lang-toggle">
-      <label>🌐 Bot replies in:</label>
+      <label>🌐 La IA responde en:</label>
       <button class="lang-btn" id="langBtnEs" onclick="setBotLanguage('es')">ES</button>
       <button class="lang-btn" id="langBtnEn" onclick="setBotLanguage('en')">EN</button>
     </div>
@@ -584,32 +585,32 @@
           <div class="stat-value" id="totalLeads">0</div>
         </div>
         <div class="stat-item hot">
-          <div class="stat-label">Hot</div>
+          <div class="stat-label">Calientes</div>
           <div class="stat-value" id="hotLeads">0</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">New</div>
+          <div class="stat-label">Nuevos</div>
           <div class="stat-value" id="newLeads">0</div>
         </div>
       </div>
 
       <div class="search-box">
-        <input type="text" id="searchInput" placeholder="Search name, phone or message...">
+        <input type="text" id="searchInput" placeholder="Buscar nombre, teléfono o mensaje...">
       </div>
       <div class="filters">
-        <select id="fTemp" title="Temperature">
-          <option value="">All temps</option>
-          <option value="Caliente">🔥 Hot</option>
-          <option value="Tibio">Warm</option>
-          <option value="Frio">Cold</option>
+        <select id="fTemp" title="Temperatura">
+          <option value="">Todas las temp.</option>
+          <option value="Caliente">🔥 Caliente</option>
+          <option value="Tibio">Tibio</option>
+          <option value="Frio">Frío</option>
         </select>
-        <select id="fMode" title="AI / Human">
-          <option value="">AI + Human</option>
-          <option value="ai">🤖 AI only</option>
-          <option value="human">🙋 Human only</option>
+        <select id="fMode" title="IA / Humano">
+          <option value="">IA + Humano</option>
+          <option value="ai">🤖 Solo IA</option>
+          <option value="human">🙋 Solo humano</option>
         </select>
-        <select id="fStage" title="Stage"><option value="">All stages</option></select>
-        <select id="fAgent" title="Agent"><option value="">All agents</option></select>
+        <select id="fStage" title="Etapa"><option value="">Todas las etapas</option></select>
+        <select id="fAgent" title="Agente"><option value="">Todos los agentes</option></select>
       </div>
       <div class="filter-count" id="filterCount"></div>
 
@@ -622,27 +623,27 @@
         <div class="chat-header-info">
           <div class="avatar" id="headerAvatar">?</div>
           <div>
-            <h2 id="customerName">Select a conversation</h2>
-            <p id="customerPhone">No customer selected</p>
+            <h2 id="customerName">Elegí una conversación</h2>
+            <p id="customerPhone">Ningún cliente seleccionado</p>
           </div>
         </div>
         <div class="chat-controls">
-          <button class="btn btn-ai active" onclick="toggleAI()">🤖 AI Active</button>
-          <button class="btn btn-human" onclick="toggleHuman()">🙋 Take Control</button>
-          <button class="btn btn-danger" id="deleteBtn" onclick="openDeleteModal()" disabled title="Delete this chat">🗑 Delete</button>
+          <button class="btn btn-ai active" onclick="toggleAI()">🤖 IA Activa</button>
+          <button class="btn btn-human" onclick="toggleHuman()">🙋 Tomar control</button>
+          <button class="btn btn-danger" id="deleteBtn" onclick="openDeleteModal()" disabled title="Borrar este chat">🗑 Borrar</button>
         </div>
       </div>
 
       <div class="messages-container" id="messagesContainer">
         <div class="empty-state">
           <div class="icon">💬</div>
-          <p>Select a conversation to view messages</p>
+          <p>Elegí una conversación para ver los mensajes</p>
         </div>
       </div>
 
       <div class="input-area">
-        <input type="text" id="messageInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()">
-        <button onclick="sendMessage()">Send</button>
+        <input type="text" id="messageInput" placeholder="Escribí un mensaje..." onkeydown="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()">Enviar</button>
       </div>
     </div>
 
@@ -650,18 +651,18 @@
     <div class="right-panel" id="rightPanel">
       <div class="empty-state" style="padding: 40px 20px;">
         <div class="icon">👤</div>
-        <p>No lead selected</p>
+        <p>Ningún lead seleccionado</p>
       </div>
     </div>
   </div>
 
   <div class="modal-backdrop" id="deleteModal" onclick="if(event.target===this) closeDeleteModal()">
     <div class="modal">
-      <h3>Delete this chat?</h3>
-      <p id="deleteModalText">This permanently removes all messages and the lead from the pipeline. It can't be undone.</p>
+      <h3>¿Borrar este chat?</h3>
+      <p id="deleteModalText">Se borran todos los mensajes y el lead del pipeline. No se puede deshacer.</p>
       <div class="actions">
-        <button class="btn btn-plain" onclick="closeDeleteModal()">Cancel</button>
-        <button class="btn btn-solid-danger" id="confirmDeleteBtn" onclick="confirmDelete()">Delete chat</button>
+        <button class="btn btn-plain" onclick="closeDeleteModal()">Cancelar</button>
+        <button class="btn btn-solid-danger" id="confirmDeleteBtn" onclick="confirmDelete()">Borrar chat</button>
       </div>
     </div>
   </div>
@@ -685,10 +686,10 @@ function timeAgo(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (diffMin < 1) return 'now';
+  if (diffMin < 1) return 'ahora';
   if (diffMin < 60) return diffMin + 'm';
   if (diffMin < 1440) return Math.floor(diffMin / 60) + 'h';
-  return d.toLocaleDateString();
+  return d.toLocaleDateString('es-UY');
 }
 
 async function loadConversations() {
@@ -727,35 +728,35 @@ function applyFilterAndRender() {
     if (fTemp && c.temperature !== fTemp) return false;
     if (fMode && c.mode !== fMode) return false;
     if (fStage && c.stage !== fStage) return false;
-    if (fAgent && (c.agent_name || '(none)') !== fAgent) return false;
+    if (fAgent && (c.agent_name || '(sin agente)') !== fAgent) return false;
     return true;
   });
   const filtering = q || fTemp || fMode || fStage || fAgent;
   document.getElementById('filterCount').innerHTML = filtering
-    ? `${list.length} of ${allConversations.length} chats · <a onclick="clearFilters()">clear</a>`
+    ? `${list.length} de ${allConversations.length} chats · <a onclick="clearFilters()">limpiar</a>`
     : '';
 
   const el = document.getElementById('conversationsList');
   if (!list.length) {
-    el.innerHTML = `<div class="empty-list">${filtering ? 'No chats match these filters' : 'No conversations yet'}</div>`;
+    el.innerHTML = `<div class="empty-list">${filtering ? 'Ningún chat coincide con los filtros' : 'Todavía no hay conversaciones'}</div>`;
     return;
   }
   el.innerHTML = list.map(c => {
     const dot = TEMP_MAP[c.temperature] ? `<span class="temp-dot ${TEMP_MAP[c.temperature]}"></span>` : '';
     const title = c.name ? escapeHtml(c.name) : escapeHtml(c.phone);
     const sub = c.name ? `<div class="conv-phone">${escapeHtml(c.phone)}</div>` : '';
-    const who = c.lastMessage && c.lastMessage.sender !== 'customer' ? (c.lastMessage.sender === 'agent' ? 'Agent: ' : 'AI: ') : '';
+    const who = c.lastMessage && c.lastMessage.sender !== 'customer' ? (c.lastMessage.sender === 'agent' ? 'Agente: ' : 'IA: ') : '';
     return `
     <div class="conversation-item ${c.phone === selectedPhone ? 'active' : ''}" onclick="selectConversation('${escapeHtml(c.phone)}')">
       <div class="avatar">${escapeHtml(initials(c.name || c.phone))}${dot}</div>
       <div class="conv-main">
         <div class="conv-top"><div class="conv-name">${title}</div></div>
         ${sub}
-        <div class="conv-preview">${c.lastMessage ? escapeHtml(who + c.lastMessage.text) : 'No messages yet'}</div>
+        <div class="conv-preview">${c.lastMessage ? escapeHtml(who + c.lastMessage.text) : 'Sin mensajes'}</div>
       </div>
       <div class="conv-right">
         <div class="conv-time">${c.lastMessage ? timeAgo(c.lastMessage.timestamp) : ''}</div>
-        ${c.mode === 'human' ? '<span class="mode-tag">HUMAN</span>' : ''}
+        ${c.mode === 'human' ? '<span class="mode-tag">HUMANO</span>' : ''}
       </div>
     </div>`;
   }).join('');
@@ -771,8 +772,8 @@ function clearFilters() {
 function refreshAgentFilter() {
   const sel = document.getElementById('fAgent');
   const current = sel.value;
-  const names = [...new Set(allConversations.map(c => c.agent_name || '(none)'))].sort();
-  const html = '<option value="">All agents</option>' + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  const names = [...new Set(allConversations.map(c => c.agent_name || '(sin agente)'))].sort();
+  const html = '<option value="">Todos los agentes</option>' + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
   if (sel.dataset.sig !== names.join('|')) {
     sel.innerHTML = html;
     sel.dataset.sig = names.join('|');
@@ -804,7 +805,7 @@ async function selectConversation(phone) {
   document.getElementById('customerName').textContent = name;
   const total = r.data.total || r.data.messages.length;
   document.getElementById('customerPhone').innerHTML =
-    `${escapeHtml(phone)}<span class="msg-count">· ${total} message${total === 1 ? '' : 's'}${total > r.data.messages.length ? ' (showing latest ' + r.data.messages.length + ')' : ''}</span>`;
+    `${escapeHtml(phone)}<span class="msg-count">· ${total} mensaje${total === 1 ? '' : 's'}${total > r.data.messages.length ? ' (mostrando los últimos ' + r.data.messages.length + ')' : ''}</span>`;
   document.getElementById('headerAvatar').textContent = initials(name);
   document.getElementById('deleteBtn').disabled = false;
   updateModeButtons();
@@ -831,14 +832,14 @@ function renderMessages(messages, forceScrollBottom) {
   const prevScrollTop = container.scrollTop;
 
   if (!messages.length) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">💬</div><p>No messages yet</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="icon">💬</div><p>Sin mensajes</p></div>`;
     return;
   }
 
   let lastDay = '';
   container.innerHTML = messages.map(m => {
     const cls = m.sender === 'customer' ? 'customer' : (m.sender === 'agent' ? 'agent' : 'ai');
-    const label = m.sender === 'customer' ? '' : (m.sender === 'agent' ? 'Agent' : 'AI');
+    const label = m.sender === 'customer' ? '' : (m.sender === 'agent' ? 'Agente' : 'IA');
     const d = new Date(m.timestamp);
     const day = d.toDateString();
     let sep = '';
@@ -846,7 +847,7 @@ function renderMessages(messages, forceScrollBottom) {
       lastDay = day;
       const today = new Date().toDateString();
       const yesterday = new Date(Date.now() - 86400000).toDateString();
-      const labelDay = day === today ? 'Today' : day === yesterday ? 'Yesterday' : d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+      const labelDay = day === today ? 'Hoy' : day === yesterday ? 'Ayer' : d.toLocaleDateString('es-UY', { day: 'numeric', month: 'short', year: 'numeric' });
       sep = `<div class="day-sep">${labelDay}</div>`;
     }
     return `${sep}
@@ -854,7 +855,7 @@ function renderMessages(messages, forceScrollBottom) {
       <div class="message-col">
         ${label ? `<div class="message-sender">${label}</div>` : ''}
         <div class="message-bubble">${escapeHtml(m.text)}</div>
-        <div class="message-time">${new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</div>
+        <div class="message-time">${new Date(m.timestamp).toLocaleTimeString('es-UY', {hour: '2-digit', minute: '2-digit'})}</div>
       </div>
     </div>`;
   }).join('');
@@ -866,14 +867,14 @@ function renderMessages(messages, forceScrollBottom) {
   }
 }
 
-const TEMP_LABELS = { 'Caliente': 'HOT', 'Tibio': 'WARM', 'Frio': 'COLD' };
-const OPERATION_LABELS = { 'compra': 'Buy', 'alquiler': 'Rent', 'inversion': 'Invest', 'venta': 'Sell' };
+const TEMP_LABELS = { 'Caliente': 'CALIENTE', 'Tibio': 'TIBIO', 'Frio': 'FRÍO' };
+const OPERATION_LABELS = { 'compra': 'Compra', 'alquiler': 'Alquiler', 'inversion': 'Inversión', 'venta': 'Venta' };
 const STAGE_LABELS = {
-  NUEVO: 'New', CALIFICANDO: 'Qualifying', CALIENTE: 'Hot',
-  CONTACTADO: 'Contacted', VISITA: 'Visit', NEGOCIACION: 'Negotiation', CERRADO: 'Closed',
+  NUEVO: 'Nuevo', CALIFICANDO: 'Calificando', CALIENTE: 'Caliente',
+  CONTACTADO: 'Contactado', VISITA: 'Visita', NEGOCIACION: 'Negociación', CERRADO: 'Cerrado',
 };
 const STAGE_ORDER = ['NUEVO', 'CALIFICANDO', 'CALIENTE', 'CONTACTADO', 'VISITA', 'NEGOCIACION', 'CERRADO'];
-document.getElementById('fStage').innerHTML = '<option value="">All stages</option>' +
+document.getElementById('fStage').innerHTML = '<option value="">Todas las etapas</option>' +
   STAGE_ORDER.map(st => `<option value="${st}">${STAGE_LABELS[st]}</option>`).join('');
 
 function field(value, formatter) {
@@ -894,7 +895,7 @@ function renderLeadPanel(lead, phone) {
   const sentLink = lead && lead.property_link && /^https?:\/\//i.test(lead.property_link)
     ? `<a href="${escapeHtml(lead.property_link)}" target="_blank" rel="noopener">${escapeHtml(lead.property_link.replace(/^https?:\/\/(www\.)?/i, '').slice(0, 38))}${lead.property_link.length > 45 ? '…' : ''} ↗</a>`
     : null;
-  const fmtDate = v => v ? new Date(v).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const fmtDate = v => v ? new Date(v).toLocaleString('es-UY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const conv = allConversations.find(c => c.phone === phone);
   const lastInteraction = conv && conv.lastMessage ? fmtDate(conv.lastMessage.timestamp) : '';
 
@@ -904,51 +905,51 @@ function renderLeadPanel(lead, phone) {
 
   panel.innerHTML = `
     <div class="panel-section">
-      <h3>Lead Status</h3>
+      <h3>Estado del lead</h3>
       <div class="info-grid">
-        <div class="info-item"><span class="info-label">Temperature</span><span class="badge badge-${badgeClass}">${badgeLabel}</span></div>
+        <div class="info-item"><span class="info-label">Temperatura</span><span class="badge badge-${badgeClass}">${badgeLabel}</span></div>
         <div class="info-item">
-          <span class="info-label">Stage</span>
+          <span class="info-label">Etapa</span>
           <select class="stage-select" onchange="setStage('${escapeHtml(phone)}', this.value)">${stageOptions}</select>
         </div>
-        <div class="info-item"><span class="info-label">First contact</span>${field(lead && fmtDate(lead.created_at))}</div>
-        <div class="info-item"><span class="info-label">Last interaction</span>${field(lastInteraction)}</div>
+        <div class="info-item"><span class="info-label">Primer contacto</span>${field(lead && fmtDate(lead.created_at))}</div>
+        <div class="info-item"><span class="info-label">Última interacción</span>${field(lastInteraction)}</div>
       </div>
     </div>
 
     <div class="panel-section">
-      <h3>Contact</h3>
+      <h3>Contacto</h3>
       <div class="info-grid">
-        <div class="info-item"><span class="info-label">Name</span>${field(lead && lead.name)}</div>
-        <div class="info-item"><span class="info-label">Phone</span>${field(phone)}</div>
-        <div class="info-item"><span class="info-label">Channel</span>${field((lead && lead.channel) || 'WhatsApp')}</div>
-        <div class="info-item"><span class="info-label">Address</span>${field(lead && lead.address)}</div>
-        <div class="info-item"><span class="info-label">Postcode</span>${field(lead && lead.postcode)}</div>
-        <div class="info-item"><span class="info-label">Assigned agent</span>${field(lead && lead.agent_name)}</div>
+        <div class="info-item"><span class="info-label">Nombre</span>${field(lead && lead.name)}</div>
+        <div class="info-item"><span class="info-label">Teléfono</span>${field(phone)}</div>
+        <div class="info-item"><span class="info-label">Canal</span>${field((lead && lead.channel) || 'WhatsApp')}</div>
+        <div class="info-item"><span class="info-label">Dirección</span>${field(lead && lead.address)}</div>
+        <div class="info-item"><span class="info-label">Código postal</span>${field(lead && lead.postcode)}</div>
+        <div class="info-item"><span class="info-label">Agente asignado</span>${field(lead && lead.agent_name)}</div>
       </div>
     </div>
 
     <div class="panel-section">
-      <h3>Preferences</h3>
+      <h3>Preferencias</h3>
       <div class="info-grid">
-        <div class="info-item"><span class="info-label">Operation</span>${field(lead && lead.operation, v => OPERATION_LABELS[v] || v)}</div>
-        <div class="info-item"><span class="info-label">Type</span>${field(lead && lead.type)}</div>
-        <div class="info-item"><span class="info-label">Zone</span>${field(lead && lead.zone)}</div>
-        <div class="info-item"><span class="info-label">Budget</span>${field(lead && lead.budget, v => '$' + Number(v).toLocaleString())}</div>
-        <div class="info-item"><span class="info-label">Bedrooms</span>${field(lead && lead.bedrooms)}</div>
-        <div class="info-item"><span class="info-label">Bathrooms</span>${field(lead && lead.bathrooms)}</div>
-        <div class="info-item"><span class="info-label">Financing</span>${field(lead && lead.financing)}</div>
-        <div class="info-item"><span class="info-label">Timeline</span>${field(lead && lead.timeline)}</div>
-        <div class="info-item"><span class="info-label">Features</span>${field(lead && lead.features)}</div>
+        <div class="info-item"><span class="info-label">Operación</span>${field(lead && lead.operation, v => OPERATION_LABELS[v] || v)}</div>
+        <div class="info-item"><span class="info-label">Tipo</span>${field(lead && lead.type)}</div>
+        <div class="info-item"><span class="info-label">Zona</span>${field(lead && lead.zone)}</div>
+        <div class="info-item"><span class="info-label">Presupuesto</span>${field(lead && lead.budget, v => '$' + Number(v).toLocaleString('es-UY'))}</div>
+        <div class="info-item"><span class="info-label">Dormitorios</span>${field(lead && lead.bedrooms)}</div>
+        <div class="info-item"><span class="info-label">Baños</span>${field(lead && lead.bathrooms)}</div>
+        <div class="info-item"><span class="info-label">Financiación</span>${field(lead && lead.financing)}</div>
+        <div class="info-item"><span class="info-label">Plazo</span>${field(lead && lead.timeline)}</div>
+        <div class="info-item"><span class="info-label">Características</span>${field(lead && lead.features)}</div>
       </div>
     </div>
 
     ${propertyLink || sentLink ? `
     <div class="panel-section">
-      <h3>Property</h3>
+      <h3>Propiedad</h3>
       <div class="info-grid">
-        ${propertyLink ? `<div class="info-item"><span class="info-label">Loop property</span><span class="info-value">${propertyLink}</span></div>` : ''}
-        ${sentLink ? `<div class="info-item"><span class="info-label">Link sent</span><span class="info-value">${sentLink}</span></div>` : ''}
+        ${propertyLink ? `<div class="info-item"><span class="info-label">Propiedad Loop</span><span class="info-value">${propertyLink}</span></div>` : ''}
+        ${sentLink ? `<div class="info-item"><span class="info-label">Link enviado</span><span class="info-value">${sentLink}</span></div>` : ''}
       </div>
     </div>` : ''}
   `;
@@ -1043,7 +1044,7 @@ function openDeleteModal() {
   if (!selectedPhone) return;
   const name = document.getElementById('customerName').textContent;
   document.getElementById('deleteModalText').textContent =
-    `This permanently removes all messages with ${name} (${selectedPhone}) and removes the lead from the pipeline. It can't be undone.`;
+    `Se borran todos los mensajes con ${name} (${selectedPhone}) y el lead del pipeline. No se puede deshacer.`;
   document.getElementById('deleteModal').classList.add('show');
 }
 function closeDeleteModal() {
@@ -1056,13 +1057,13 @@ async function confirmDelete() {
   btn.disabled = true;
   try {
     const r = await (await fetch(`/api/conversations/${encodeURIComponent(phone)}`, { method: 'DELETE' })).json();
-    if (!r.success) throw new Error(r.error || 'Delete failed');
+    if (!r.success) throw new Error(r.error || 'no se pudo borrar');
     closeDeleteModal();
     resetChatView();
-    showToast('Chat deleted');
+    showToast('Chat borrado');
     loadConversations();
   } catch (err) {
-    showToast('Could not delete: ' + err.message, true);
+    showToast('No se pudo borrar: ' + err.message, true);
   } finally {
     btn.disabled = false;
   }
@@ -1070,14 +1071,14 @@ async function confirmDelete() {
 function resetChatView() {
   selectedPhone = null;
   lastMessageSignature = null;
-  document.getElementById('customerName').textContent = 'Select a conversation';
-  document.getElementById('customerPhone').textContent = 'No customer selected';
+  document.getElementById('customerName').textContent = 'Elegí una conversación';
+  document.getElementById('customerPhone').textContent = 'Ningún cliente seleccionado';
   document.getElementById('headerAvatar').textContent = '?';
   document.getElementById('deleteBtn').disabled = true;
   document.getElementById('messagesContainer').innerHTML =
-    '<div class="empty-state"><div class="icon">💬</div><p>Select a conversation to view messages</p></div>';
+    '<div class="empty-state"><div class="icon">💬</div><p>Elegí una conversación para ver los mensajes</p></div>';
   document.getElementById('rightPanel').innerHTML =
-    '<div class="empty-state" style="padding: 40px 20px;"><div class="icon">👤</div><p>No lead selected</p></div>';
+    '<div class="empty-state" style="padding: 40px 20px;"><div class="icon">👤</div><p>Ningún lead seleccionado</p></div>';
   if (window.history && window.location.search) window.history.replaceState(null, '', '/dashboard');
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDeleteModal(); });
@@ -1088,7 +1089,7 @@ async function sendMessage() {
   const r = await (await fetch(`/api/conversations/${encodeURIComponent(selectedPhone)}/reply`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: input.value }),
   })).json().catch(() => ({ success: false, error: 'network error' }));
-  if (!r.success) { showToast('Message not sent: ' + (r.error || 'error'), true); return; }
+  if (!r.success) { showToast('Mensaje no enviado: ' + (r.error || 'error'), true); return; }
   input.value = '';
   lastMessageSignature = null; // force this one refresh to actually re-render (we just added a message)
   selectConversation(selectedPhone);
