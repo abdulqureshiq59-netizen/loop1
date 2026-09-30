@@ -247,4 +247,14 @@ async function getMode(phone) {
   return res.rows[0]?.mode || 'ai';
 }
 
-module.exports = { upsertLead, getAllLeads, getLeadByPhone, updateStage, bumpStageTo, setMode, getAllModes, getMode };
+// Admin "delete chat" from the dashboard (client request 2026-09-30) —
+// removes the lead row too, so the pipeline card disappears with the chat
+// and a new message from the same number starts over as a fresh NUEVO lead
+// in AI mode.
+async function deleteLead(phone) {
+  await ensureTable();
+  const res = await pool.query('DELETE FROM leads WHERE phone = $1', [phone]);
+  return res.rowCount;
+}
+
+module.exports = { upsertLead, getAllLeads, getLeadByPhone, updateStage, bumpStageTo, setMode, getAllModes, getMode, deleteLead };
