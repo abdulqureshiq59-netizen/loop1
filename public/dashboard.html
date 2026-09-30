@@ -54,8 +54,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 16px;
     padding: 0 20px;
+    min-width: 0;
   }
+  .topnav .spacer { flex: 1; }
   .topnav .brand {
     display: flex;
     align-items: center;
@@ -88,8 +91,14 @@
 
   .container {
     display: grid;
-    grid-template-columns: 300px 1fr 340px;
+    /* minmax(0,1fr) instead of 1fr (2026-09-30): a plain 1fr column grows
+       to fit its widest child (a long message bubble), which pushed the
+       right panel partly off-screen and cut values like Address/Features. */
+    grid-template-columns: 300px minmax(0, 1fr) 340px;
     height: calc(100vh - 58px);
+  }
+  @media (max-width: 1280px) {
+    .container { grid-template-columns: 260px minmax(0, 1fr) 300px; }
   }
 
   /* ============ SIDEBAR (conversation list) ============ */
@@ -194,6 +203,59 @@
     margin-top: 2px;
   }
   .conv-time { font-size: 0.68em; color: var(--sidebar-text-dim); flex-shrink: 0; }
+
+  .conv-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .conv-top .conv-name { flex: 1; min-width: 0; }
+  .conv-phone { font-size: 0.7em; color: var(--sidebar-text-dim); margin-top: 1px; }
+  .mode-tag {
+    flex-shrink: 0;
+    font-size: 0.6em; font-weight: 700; letter-spacing: 0.04em;
+    padding: 2px 6px; border-radius: 6px;
+    background: #1f9d5533; color: #4ade80;
+  }
+  .conv-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+
+  .btn-danger { background: #fdecee; color: var(--hot); }
+  .btn-danger:hover { background: var(--hot); color: #fff; filter: none; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .msg-count { color: var(--text-faint); font-size: 0.75em; margin-left: 6px; font-weight: 500; }
+
+  .day-sep {
+    align-self: center;
+    margin: 14px 0 8px;
+    font-size: 0.7em; font-weight: 700; letter-spacing: .04em;
+    color: var(--text-faint);
+    background: var(--bg);
+    padding: 4px 12px; border-radius: 20px;
+  }
+
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--sidebar-bg); color: #fff;
+    padding: 11px 18px; border-radius: 10px;
+    font-size: 0.85em; font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    opacity: 0; pointer-events: none; transition: all .2s; z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: var(--hot); }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(20,22,42,.55);
+    display: none; align-items: center; justify-content: center; z-index: 40;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: #fff; border-radius: var(--radius); padding: 24px;
+    width: 380px; max-width: calc(100vw - 32px);
+    box-shadow: 0 20px 50px rgba(0,0,0,.3);
+  }
+  .modal h3 { font-size: 1.05em; margin-bottom: 8px; }
+  .modal p { font-size: 0.88em; color: var(--text-dim); line-height: 1.5; margin-bottom: 18px; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .btn-plain { background: var(--bg); color: var(--text); }
+  .btn-solid-danger { background: var(--hot); color: #fff; }
 
   .empty-list { padding: 30px 14px; text-align: center; color: var(--sidebar-text-dim); font-size: 0.85em; }
 
@@ -350,8 +412,9 @@
   .info-item {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
   }
   .info-label { color: var(--text-dim); font-size: 0.82em; flex-shrink: 0; }
   .info-value {
@@ -360,6 +423,8 @@
     font-size: 0.85em;
     text-align: right;
     word-break: break-word;
+    overflow-wrap: anywhere;
+    min-width: 0;
   }
   .info-value.empty { color: var(--text-faint); font-weight: 400; }
   .info-value a { color: var(--accent); text-decoration: none; }
@@ -488,6 +553,7 @@
       <a href="/dashboard" class="active">💬 Chats</a>
       <a href="/pipeline">📋 Pipeline</a>
     </div>
+    <div class="spacer"></div>
     <div class="admin-config">
       <label>🔔 Admin alerts:</label>
       <input type="text" id="adminPhoneInput" placeholder="e.g. 59899xxxxxx">
@@ -539,6 +605,7 @@
         <div class="chat-controls">
           <button class="btn btn-ai active" onclick="toggleAI()">🤖 AI Active</button>
           <button class="btn btn-human" onclick="toggleHuman()">🙋 Take Control</button>
+          <button class="btn btn-danger" id="deleteBtn" onclick="openDeleteModal()" disabled title="Delete this chat">🗑 Delete</button>
         </div>
       </div>
 
@@ -564,7 +631,21 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="deleteModal" onclick="if(event.target===this) closeDeleteModal()">
+    <div class="modal">
+      <h3>Delete this chat?</h3>
+      <p id="deleteModalText">This permanently removes all messages and the lead from the pipeline. It can't be undone.</p>
+      <div class="actions">
+        <button class="btn btn-plain" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-solid-danger" id="confirmDeleteBtn" onclick="confirmDelete()">Delete chat</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
 <script>
+const TEMP_MAP = { 'Caliente': 'hot', 'Tibio': 'warm', 'Frio': 'cold' };
 let selectedPhone = null;
 let currentMode = 'ai';
 let lastMessageSignature = null; // detects whether messages actually changed, so we don't reset scroll on every poll
@@ -610,7 +691,10 @@ function renderConversations(list) {
 function applyFilterAndRender() {
   const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
   const list = q
-    ? allConversations.filter(c => c.phone.toLowerCase().includes(q) || (c.lastMessage && c.lastMessage.text && c.lastMessage.text.toLowerCase().includes(q)))
+    ? allConversations.filter(c =>
+        c.phone.toLowerCase().includes(q) ||
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.lastMessage && c.lastMessage.text && c.lastMessage.text.toLowerCase().includes(q)))
     : allConversations;
 
   const el = document.getElementById('conversationsList');
@@ -618,42 +702,71 @@ function applyFilterAndRender() {
     el.innerHTML = `<div class="empty-list">No conversations${q ? ' match "' + q + '"' : ' yet'}</div>`;
     return;
   }
-  el.innerHTML = list.map(c => `
-    <div class="conversation-item ${c.phone === selectedPhone ? 'active' : ''}" onclick="selectConversation('${c.phone}')">
-      <div class="avatar">${initials(c.phone)}</div>
+  el.innerHTML = list.map(c => {
+    const dot = TEMP_MAP[c.temperature] ? `<span class="temp-dot ${TEMP_MAP[c.temperature]}"></span>` : '';
+    const title = c.name ? escapeHtml(c.name) : escapeHtml(c.phone);
+    const sub = c.name ? `<div class="conv-phone">${escapeHtml(c.phone)}</div>` : '';
+    const who = c.lastMessage && c.lastMessage.sender !== 'customer' ? (c.lastMessage.sender === 'agent' ? 'Agent: ' : 'AI: ') : '';
+    return `
+    <div class="conversation-item ${c.phone === selectedPhone ? 'active' : ''}" onclick="selectConversation('${escapeHtml(c.phone)}')">
+      <div class="avatar">${escapeHtml(initials(c.name || c.phone))}${dot}</div>
       <div class="conv-main">
-        <div class="conv-name">${c.phone}</div>
-        <div class="conv-preview">${c.lastMessage ? escapeHtml(c.lastMessage.text) : 'No messages yet'}</div>
+        <div class="conv-top"><div class="conv-name">${title}</div></div>
+        ${sub}
+        <div class="conv-preview">${c.lastMessage ? escapeHtml(who + c.lastMessage.text) : 'No messages yet'}</div>
       </div>
-      <div class="conv-time">${c.lastMessage ? timeAgo(c.lastMessage.timestamp) : ''}</div>
-    </div>`).join('');
+      <div class="conv-right">
+        <div class="conv-time">${c.lastMessage ? timeAgo(c.lastMessage.timestamp) : ''}</div>
+        ${c.mode === 'human' ? '<span class="mode-tag">HUMAN</span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 document.getElementById('searchInput').addEventListener('input', applyFilterAndRender);
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
 async function selectConversation(phone) {
   const isNewConversation = phone !== selectedPhone;
   selectedPhone = phone;
-  lastMessageSignature = null; // force a render since we switched conversations
-  const r = await (await fetch(`/api/conversations/${phone}`)).json();
+  // Only force a full re-render when switching chats. The old code reset
+  // this on EVERY 5s poll, so the "nothing changed, keep scroll" check in
+  // renderMessages never actually ran.
+  if (isNewConversation) lastMessageSignature = null;
+
+  let r;
+  try {
+    r = await (await fetch(`/api/conversations/${encodeURIComponent(phone)}`)).json();
+  } catch (err) { return; }
   if (!r.success) return;
+  if (phone !== selectedPhone) return; // user clicked another chat while this was loading
 
   currentMode = r.data.mode;
-  document.getElementById('customerName').textContent = r.data.lead?.name || phone;
-  document.getElementById('customerPhone').textContent = phone;
-  document.getElementById('headerAvatar').textContent = initials(r.data.lead?.name || phone);
+  const name = r.data.lead?.name || phone;
+  document.getElementById('customerName').textContent = name;
+  const total = r.data.total || r.data.messages.length;
+  document.getElementById('customerPhone').innerHTML =
+    `${escapeHtml(phone)}<span class="msg-count">· ${total} message${total === 1 ? '' : 's'}${total > r.data.messages.length ? ' (showing latest ' + r.data.messages.length + ')' : ''}</span>`;
+  document.getElementById('headerAvatar').textContent = initials(name);
+  document.getElementById('deleteBtn').disabled = false;
   updateModeButtons();
   renderMessages(r.data.messages, isNewConversation);
-  renderLeadPanel(r.data.lead, phone);
+
+  // Don't rebuild the right panel while the stage dropdown is open/focused —
+  // the 5s poll used to close it in the middle of picking a stage.
+  const active = document.activeElement;
+  if (!(active && active.classList && active.classList.contains('stage-select'))) {
+    renderLeadPanel(r.data.lead, phone);
+  }
 
   applyFilterAndRender(); // refresh active highlight in the list
 }
 
 function renderMessages(messages, forceScrollBottom) {
-  const signature = messages.length + '|' + (messages.length ? messages[messages.length - 1].timestamp : '');
+  const last = messages[messages.length - 1];
+  const signature = messages.length + '|' + (last ? last.timestamp + '|' + last.text : '');
   if (signature === lastMessageSignature) return; // nothing new — leave the DOM (and scroll position) alone
   lastMessageSignature = signature;
 
@@ -666,10 +779,21 @@ function renderMessages(messages, forceScrollBottom) {
     return;
   }
 
+  let lastDay = '';
   container.innerHTML = messages.map(m => {
     const cls = m.sender === 'customer' ? 'customer' : (m.sender === 'agent' ? 'agent' : 'ai');
     const label = m.sender === 'customer' ? '' : (m.sender === 'agent' ? 'Agent' : 'AI');
-    return `
+    const d = new Date(m.timestamp);
+    const day = d.toDateString();
+    let sep = '';
+    if (day !== lastDay) {
+      lastDay = day;
+      const today = new Date().toDateString();
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      const labelDay = day === today ? 'Today' : day === yesterday ? 'Yesterday' : d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+      sep = `<div class="day-sep">${labelDay}</div>`;
+    }
+    return `${sep}
     <div class="message ${cls}">
       <div class="message-col">
         ${label ? `<div class="message-sender">${label}</div>` : ''}
@@ -686,7 +810,6 @@ function renderMessages(messages, forceScrollBottom) {
   }
 }
 
-const TEMP_MAP = { 'Caliente': 'hot', 'Tibio': 'warm', 'Frio': 'cold' };
 const TEMP_LABELS = { 'Caliente': 'HOT', 'Tibio': 'WARM', 'Frio': 'COLD' };
 const OPERATION_LABELS = { 'compra': 'Buy', 'alquiler': 'Rent', 'inversion': 'Invest', 'venta': 'Sell' };
 const STAGE_LABELS = {
@@ -771,7 +894,7 @@ function updateModeButtons() {
 
 async function setMode(mode) {
   if (!selectedPhone) return;
-  await fetch(`/api/conversations/${selectedPhone}/mode`, {
+  await fetch(`/api/conversations/${encodeURIComponent(selectedPhone)}/mode`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
   });
   currentMode = mode;
@@ -836,21 +959,83 @@ async function setBotLanguage(language) {
 }
 loadBotLanguage();
 
+// ---- Toast ----
+let toastTimer = null;
+function showToast(text, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ---- Delete chat (admin, client request 2026-09-30) ----
+function openDeleteModal() {
+  if (!selectedPhone) return;
+  const name = document.getElementById('customerName').textContent;
+  document.getElementById('deleteModalText').textContent =
+    `This permanently removes all messages with ${name} (${selectedPhone}) and removes the lead from the pipeline. It can't be undone.`;
+  document.getElementById('deleteModal').classList.add('show');
+}
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('show');
+}
+async function confirmDelete() {
+  if (!selectedPhone) return;
+  const phone = selectedPhone;
+  const btn = document.getElementById('confirmDeleteBtn');
+  btn.disabled = true;
+  try {
+    const r = await (await fetch(`/api/conversations/${encodeURIComponent(phone)}`, { method: 'DELETE' })).json();
+    if (!r.success) throw new Error(r.error || 'Delete failed');
+    closeDeleteModal();
+    resetChatView();
+    showToast('Chat deleted');
+    loadConversations();
+  } catch (err) {
+    showToast('Could not delete: ' + err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+function resetChatView() {
+  selectedPhone = null;
+  lastMessageSignature = null;
+  document.getElementById('customerName').textContent = 'Select a conversation';
+  document.getElementById('customerPhone').textContent = 'No customer selected';
+  document.getElementById('headerAvatar').textContent = '?';
+  document.getElementById('deleteBtn').disabled = true;
+  document.getElementById('messagesContainer').innerHTML =
+    '<div class="empty-state"><div class="icon">💬</div><p>Select a conversation to view messages</p></div>';
+  document.getElementById('rightPanel').innerHTML =
+    '<div class="empty-state" style="padding: 40px 20px;"><div class="icon">👤</div><p>No lead selected</p></div>';
+  if (window.history && window.location.search) window.history.replaceState(null, '', '/dashboard');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDeleteModal(); });
+
 async function sendMessage() {
   const input = document.getElementById('messageInput');
   if (!input.value.trim() || !selectedPhone) return;
-  await fetch(`/api/conversations/${selectedPhone}/reply`, {
+  const r = await (await fetch(`/api/conversations/${encodeURIComponent(selectedPhone)}/reply`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: input.value }),
-  });
+  })).json().catch(() => ({ success: false, error: 'network error' }));
+  if (!r.success) { showToast('Message not sent: ' + (r.error || 'error'), true); return; }
   input.value = '';
   lastMessageSignature = null; // force this one refresh to actually re-render (we just added a message)
   selectConversation(selectedPhone);
 }
 
 loadConversations();
-setInterval(() => {
-  loadConversations();
-  if (selectedPhone) selectConversation(selectedPhone);
+let polling = false;
+setInterval(async () => {
+  if (polling) return; // previous poll still running (e.g. Render cold start) — skip instead of piling up
+  polling = true;
+  try {
+    await loadConversations();
+    if (selectedPhone) await selectConversation(selectedPhone);
+  } catch (err) { /* transient network error — next poll retries */ }
+  polling = false;
 }, 5000);
 
 // Coming here from a pipeline card (/dashboard?phone=59899...) opens that
