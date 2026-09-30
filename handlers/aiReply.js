@@ -1,5 +1,6 @@
 const openai = require("../config/openai");
 const settingsDb = require("../services/settingsDb");
+const { LOOP_KNOWLEDGE, KNOWLEDGE_RULES } = require("../services/loopKnowledge");
 const logger = require("../utils/logger");
 
 const conversations = {};
@@ -41,12 +42,10 @@ async function setLanguage(lang) {
   logger.info(`Bot reply language changed to "${LANGUAGE}" via dashboard`);
 }
 
-// Static company info (from loopinmobiliaria.uy footer) — the AI previously
-// had no source of truth for this, so basic questions like "what's your
-// address/phone" got vague filler ("Uruguay somewhere") or got deflected to
-// "an agent will follow up" as if it were a property-specific question.
+// Static company info (from loopinmobiliaria.uy footer + the client's
+// 2026 agent-training PDF, which adds the office number "of. 601").
 const COMPANY_INFO = {
-  address: "Av. de las Américas 7775, edificio Ventura Tower, Carrasco, Montevideo, Uruguay",
+  address: "Av. de las Américas 7775, of. 601, edificio Ventura Tower, Carrasco, Montevideo, Uruguay",
   phone: "+598 92 950 000",
   email: "hola@loopinmobiliaria.uy",
   website: "https://loopinmobiliaria.uy",
@@ -55,7 +54,7 @@ const COMPANY_INFO = {
 const PROMPTS = {
   es: {
     languageLine: `IMPORTANTE: Respondé SIEMPRE en español, sin importar en qué idioma te escriba el cliente (inglés, portugués, o cualquier otro). Nunca cambies de idioma para "seguirle la corriente" al cliente — el negocio opera en español y todas tus respuestas deben ser en español.`,
-    base: `Sos el asistente comercial de Loop Inmobiliaria, una inmobiliaria en Uruguay.
+    base: `Sos el asistente comercial de Loop Inmobiliaria, una inmobiliaria en Uruguay. Tu tono es cercano, honesto y transparente, como el de un asesor de Loop.
 
 Datos reales de la empresa (usalos directamente si preguntan por dirección, teléfono, email o sitio web — NO digas que "un agente va a confirmar" para esto, ya lo sabés):
 - Dirección: ${COMPANY_INFO.address}
@@ -120,7 +119,7 @@ En cuanto tengas TODOS los datos de la lista correspondiente, mencioná INMEDIAT
   },
   en: {
     languageLine: `IMPORTANT: This is a TEST-MODE English reply. Do not use this in front of real customers — this language is only for the developer's own testing.`,
-    base: `You are the commercial assistant for Loop Inmobiliaria, a real estate agency in Uruguay.
+    base: `You are the commercial assistant for Loop Inmobiliaria, a real estate agency in Uruguay. Your tone is close, honest and transparent, like a Loop advisor.
 
 Real company info (use it directly if asked for address, phone, email, or website — do NOT say "an agent will confirm" for this, you already know it):
 - Address: ${COMPANY_INFO.address}
@@ -187,7 +186,11 @@ As soon as you have ALL the fields from the matching list, say IMMEDIATELY in th
 
 function buildSystemPrompt(property) {
   const t = PROMPTS[LANGUAGE] || PROMPTS.es;
-  const base = `${t.base}\n\n${t.languageLine}`;
+  const rules = KNOWLEDGE_RULES[LANGUAGE] || KNOWLEDGE_RULES.es;
+  // Knowledge base (client's 2026 training PDF) goes after the base
+  // instructions and before the language line, so the language rule is
+  // still the last thing the model reads.
+  const base = `${t.base}\n\n${rules}\n${LOOP_KNOWLEDGE}\n\n${t.languageLine}`;
 
   if (!property) {
     return `${base}\n${t.noProperty}`;
@@ -220,7 +223,11 @@ async function getAIReply(from, userText, property = null) {
       model: "gpt-4o-mini",
       messages: conversations[from],
       temperature: 0.7,
-      max_tokens: 150,
+      // Raised from 150 (2026-09-30): knowledge-base answers (costs,
+      // purchase steps, guarantees) can need 4-5 lines, and 150 tokens was
+      // cutting those off mid-sentence. The prompt still asks for 2-3 lines
+      // for normal qualification messages.
+      max_tokens: 300,
     });
 
     const reply = response.choices[0].message.content.trim();
