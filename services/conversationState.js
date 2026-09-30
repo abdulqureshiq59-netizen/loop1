@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 const state = {}; // { [phone]: { mode: 'ai'|'human', messages: [], property: null, lead: null } }
 
 function getOrCreate(phone) {
-  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null, propertiesSuggested: false, visitScheduled: false, hotAlerted: false };
+  if (!state[phone]) state[phone] = { mode: 'ai', messages: [], property: null, lead: null, propertiesSuggested: false, visitScheduled: false, hotAlerted: false, alertedProperties: [] };
   return state[phone];
 }
 function setLead(phone, lead) { getOrCreate(phone).lead = lead; }
@@ -37,6 +37,14 @@ function setVisitScheduled(phone, value) { getOrCreate(phone).visitScheduled = v
 // propertiesSuggested/visitScheduled do — when the chat is handed back to AI.
 function getHotAlerted(phone) { return getOrCreate(phone).hotAlerted; }
 function setHotAlerted(phone, value) { getOrCreate(phone).hotAlerted = value; }
+
+// Property IDs whose responsible agent was already alerted for this
+// conversation cycle (client 2026-10-01: alert the agent as soon as we know
+// whose property it is) — so the same link sent twice doesn't re-alert.
+// Reset with the other flags when the chat is handed back to AI.
+function wasPropertyAlerted(phone, propId) { return getOrCreate(phone).alertedProperties.includes(String(propId)); }
+function markPropertyAlerted(phone, propId) { getOrCreate(phone).alertedProperties.push(String(propId)); }
+function resetPropertyAlerts(phone) { getOrCreate(phone).alertedProperties = []; }
 
 function addMessage(phone, sender, text) {
   const c = getOrCreate(phone);
@@ -98,4 +106,4 @@ function clearConversation(phone) { delete state[phone]; }
   }
 })();
 
-module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, clearConversation, getPropertiesSuggested, setPropertiesSuggested, getVisitScheduled, setVisitScheduled, getHotAlerted, setHotAlerted };
+module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, clearConversation, getPropertiesSuggested, setPropertiesSuggested, getVisitScheduled, setVisitScheduled, getHotAlerted, setHotAlerted, wasPropertyAlerted, markPropertyAlerted, resetPropertyAlerts };
