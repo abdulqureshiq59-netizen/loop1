@@ -6,6 +6,8 @@ const leadsDb = require('../services/leadsDb');
 const { sendTextMessage } = require('../utils/whatsappAPI');
 const adminNotify = require('../services/adminNotify');
 const { getLanguage, setLanguage, clearConversationHistory } = require('../handlers/aiReply');
+const aiConfig = require('../services/aiConfig');
+const { getAllProperties, getAllProjects } = require('../services/propertyLookup');
 const logger = require('../utils/logger');
 
 // Conversation list now comes from the database (messages table), not
@@ -106,6 +108,7 @@ router.post('/api/conversations/:phone/mode', async (req, res) => {
       conversationState.setPropertiesSuggested(req.params.phone, false);
       conversationState.setVisitScheduled(req.params.phone, false);
       conversationState.setHotAlerted(req.params.phone, false);
+      conversationState.resetPropertyAlerts(req.params.phone);
       logger.info(`${req.params.phone} handed back to AI — reset properties-suggested/visit-scheduled/hot-alerted flags for a fresh inquiry`);
     }
 
@@ -189,6 +192,73 @@ router.post('/api/settings/bot-language', async (req, res) => {
   } catch (err) {
     logger.error('Error saving bot language setting:', err.message);
     res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ---- "Entrenar IA" page (client request 2026-10-01) ----
+
+// Knowledge entries the client adds for the bot to use.
+router.get('/api/training', async (req, res) => {
+  try {
+    res.json({ success: true, entries: await aiConfig.getTraining() });
+  } catch (err) {
+    logger.error('Error loading training:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/api/training', async (req, res) => {
+  try {
+    const entries = await aiConfig.setTraining(req.body.entries || []);
+    logger.info(`Training updated from the dashboard (${entries.length} entries)`);
+    res.json({ success: true, entries });
+  } catch (err) {
+    logger.error('Error saving training:', err.message);
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Responsible agents found in the live property catalog + the WhatsApp
+// number used for their alerts (saved one > code > NAI's own).
+router.get('/api/agents', async (req, res) => {
+  try {
+    const [properties, projects, saved] = await Promise.all([
+      getAllProperties().catch(() => []),
+      getAllProjects().catch(() => []),
+      aiConfig.getSavedAgentPhones(),
+    ]);
+    const byName = {};
+    [...properties, ...projects].forEach(p => {
+      const name = String(p.agent_name || '').trim();
+      if (!name) return;
+      if (!byName[name]) byName[name] = { name, properties: 0, naiPhone: '' };
+      byName[name].properties += 1;
+      if (!byName[name].naiPhone && p.agent_phone) byName[name].naiPhone = aiConfig.normalizePhone(p.agent_phone);
+    });
+    Object.keys(saved).forEach(n => { if (!byName[n]) byName[n] = { name: n, properties: 0, naiPhone: '' }; });
+    const agents = await Promise.all(Object.values(byName).map(async a => ({
+      ...a,
+      phone: saved[a.name] || '',
+      effectivePhone: await aiConfig.getAgentPhone(a.name, a.naiPhone),
+    })));
+    agents.sort((x, y) => x.name.localeCompare(y.name));
+    res.json({ success: true, agents });
+  } catch (err) {
+    logger.error('Error loading agents:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/api/agents', async (req, res) => {
+  try {
+    const map = {};
+    (req.body.agents || []).forEach(a => { if (a && a.name) map[a.name] = a.phone || ''; });
+    const saved = await aiConfig.setSavedAgentPhones(map);
+    logger.info(`Agent numbers updated from the dashboard (${Object.keys(saved).length} saved)`);
+    res.json({ success: true, saved });
+  } catch (err) {
+    logger.error('Error saving agents:', err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
