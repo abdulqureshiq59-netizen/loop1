@@ -74,6 +74,12 @@ function getAll() {
 }
 function getConversation(phone) { return getOrCreate(phone); }
 
+// Drops everything this process remembers about a phone (messages cache,
+// property, lead, the once-per-conversation flags) — used by the admin
+// "delete chat" action so a deleted chat doesn't keep influencing the next
+// lead extraction or property suggestion from the same number.
+function clearConversation(phone) { delete state[phone]; }
+
 // On boot, restore mode ('ai'/'human') for every known phone from Postgres,
 // so a redeploy doesn't lose track of conversations a human agent already
 // took control of. Message history itself is read fresh from messagesDb by
@@ -92,4 +98,4 @@ function getConversation(phone) { return getOrCreate(phone); }
   }
 })();
 
-module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, getPropertiesSuggested, setPropertiesSuggested, getVisitScheduled, setVisitScheduled, getHotAlerted, setHotAlerted };
+module.exports = { addMessage, getMode, setMode, setProperty, getProperty, setLead, getLead, getAll, getConversation, clearConversation, getPropertiesSuggested, setPropertiesSuggested, getVisitScheduled, setVisitScheduled, getHotAlerted, setHotAlerted };
