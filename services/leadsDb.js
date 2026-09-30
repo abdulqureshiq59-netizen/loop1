@@ -27,7 +27,7 @@ const HUMAN_MANAGED_FROM_INDEX = 3;
 async function notifyOnStageChange(phone, oldStage, newStage, leadRow = {}) {
   if (oldStage === newStage) return;
   if (newStage === 'CALIENTE' && oldStage !== 'CALIENTE') {
-    await adminNotify.notifyHotLead(phone, leadRow);
+    await adminNotify.notifyHotLead(phone, leadRow, leadRow.agent_name || '');
   }
   if (newStage === 'VISITA' && oldStage !== 'VISITA') {
     await adminNotify.notifyVisitScheduled(phone, leadRow);
@@ -37,8 +37,13 @@ async function notifyOnStageChange(phone, oldStage, newStage, leadRow = {}) {
 let initPromise = null;
 
 async function ensureTable() {
+  // The whole setup (CREATE + every ALTER) is one promise now. Before, only
+  // the CREATE was stored in initPromise, so a second caller arriving during
+  // boot could run a query before the ALTERs finished and hit "column does
+  // not exist" on the first deploy after a new column was added.
   if (!initPromise) {
-    initPromise = pool.query(`
+    initPromise = (async () => {
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS leads (
         phone TEXT PRIMARY KEY,
         name TEXT DEFAULT '',
@@ -60,7 +65,6 @@ async function ensureTable() {
       );
     `);
     // In case this table already existed from before these columns existed.
-    await initPromise;
     await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'ai';`);
     // Client's required qualification flow (2026-09-19) also collects the
     // property's bathrooms/features and the customer's own address/postcode
@@ -69,6 +73,25 @@ async function ensureTable() {
     await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS features TEXT DEFAULT '';`);
     await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS address TEXT DEFAULT '';`);
     await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS postcode TEXT DEFAULT '';`);
+    // Spec #13 (2026-09-30): "fecha" (when the lead first came in — the old
+    // table only had updated_at, which changes on every message) and the
+    // "link" the customer asked about (a Loop link or another portal's).
+    const addedCreated = await pool.query(`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'leads' AND column_name = 'created_at'`);
+    await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();`);
+    await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS property_link TEXT DEFAULT '';`);
+    if (addedCreated.rowCount === 0) {
+      // Column is brand new: every existing lead just got "now" as its date.
+      // Backfill it from that phone's first saved message instead.
+      await pool.query(`
+        UPDATE leads l SET created_at = m.first_at
+        FROM (SELECT phone, MIN(created_at) AS first_at FROM messages GROUP BY phone) m
+        WHERE l.phone = m.phone AND m.first_at < l.created_at`).catch(err => {
+        logger.error('created_at backfill skipped:', err.message);
+      });
+    }
+    })().catch(err => { initPromise = null; throw err; });
   }
   return initPromise;
 }
@@ -94,8 +117,8 @@ async function upsertLead(phone, leadData) {
     const nextStage = computeAutoStage(currentStage, leadData);
 
     await pool.query(
-      `INSERT INTO leads (phone, name, channel, operation, type, zone, bedrooms, bathrooms, budget, financing, timeline, features, address, postcode, temperature, property_id, agent_name, stage, last_message, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19, now())
+      `INSERT INTO leads (phone, name, channel, operation, type, zone, bedrooms, bathrooms, budget, financing, timeline, features, address, postcode, temperature, property_id, agent_name, stage, last_message, property_link, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20, now())
        ON CONFLICT (phone) DO UPDATE SET
          name = COALESCE(NULLIF(EXCLUDED.name, ''), leads.name),
          channel = COALESCE(NULLIF(EXCLUDED.channel, ''), leads.channel),
@@ -115,6 +138,7 @@ async function upsertLead(phone, leadData) {
          agent_name = COALESCE(NULLIF(EXCLUDED.agent_name, ''), leads.agent_name),
          stage = EXCLUDED.stage,
          last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), leads.last_message),
+         property_link = COALESCE(NULLIF(EXCLUDED.property_link, ''), leads.property_link),
          updated_at = now()`,
       [
         phone,
@@ -123,7 +147,7 @@ async function upsertLead(phone, leadData) {
         String(leadData.bathrooms || ''), String(leadData.budget || ''), leadData.financing || '',
         leadData.timeline || '', leadData.features || '', leadData.address || '', leadData.postcode || '',
         leadData.temperature || '', leadData.property_id || '', leadData.agent_name || '',
-        nextStage, leadData.last_message || '',
+        nextStage, leadData.last_message || '', leadData.property_link || '',
       ]
     );
     logger.info(`Lead upserted for ${phone} (stage: ${nextStage})`);
@@ -187,7 +211,11 @@ async function updateStage(phone, stage) {
 // "an agent just took manual control of this conversation" -> CONTACTADO,
 // so that action alone advances the pipeline instead of requiring the
 // agent to also remember to drag the card on /pipeline.
-async function bumpStageTo(phone, targetStage) {
+// options.notify=false: caller sends its own, more detailed alert (visit
+// detection does), so don't also fire the generic stage-change one —
+// that used to send the admin two alerts for every scheduled visit.
+async function bumpStageTo(phone, targetStage, options = {}) {
+  const notify = options.notify !== false;
   await ensureTable();
   const targetIndex = STAGE_ORDER.indexOf(targetStage);
   if (targetIndex === -1) throw new Error(`Unknown stage: ${targetStage}`);
@@ -201,7 +229,7 @@ async function bumpStageTo(phone, targetStage) {
        ON CONFLICT (phone) DO NOTHING`,
       [phone, targetStage]
     );
-    notifyOnStageChange(phone, 'NUEVO', targetStage, {}).catch(err => {
+    if (notify) notifyOnStageChange(phone, 'NUEVO', targetStage, {}).catch(err => {
       logger.error(`Failed to send admin notification for ${phone}:`, err.message);
     });
     return;
@@ -209,7 +237,7 @@ async function bumpStageTo(phone, targetStage) {
   const currentIndex = STAGE_ORDER.indexOf(existing.rows[0].stage);
   if (currentIndex >= targetIndex) return; // already there or further along — don't move it backward
   await pool.query('UPDATE leads SET stage = $1, updated_at = now() WHERE phone = $2', [targetStage, phone]);
-  notifyOnStageChange(phone, existing.rows[0].stage, targetStage, existing.rows[0]).catch(err => {
+  if (notify) notifyOnStageChange(phone, existing.rows[0].stage, targetStage, existing.rows[0]).catch(err => {
     logger.error(`Failed to send admin notification for ${phone}:`, err.message);
   });
 }
