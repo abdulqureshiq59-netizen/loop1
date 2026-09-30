@@ -6,7 +6,7 @@ const leadsDb = require('../services/leadsDb');
 const { sendTextMessage } = require('../utils/whatsappAPI');
 const { getAllProperties, getAllProjects } = require('../services/propertyLookup');
 const adminNotify = require('../services/adminNotify');
-const { getLanguage, setLanguage } = require('../handlers/aiReply');
+const { getLanguage, setLanguage, clearConversationHistory } = require('../handlers/aiReply');
 const logger = require('../utils/logger');
 
 // TEMPORARY (2026-09-19): one-off check the client asked for — how many
@@ -33,11 +33,29 @@ router.get('/api/debug/price-check', async (req, res) => {
 });
 
 // Conversation list now comes from the database (messages table), not
-// server memory — this is what survives a restart/redeploy.
+// server memory — this is what survives a restart/redeploy. Enriched
+// (2026-09-30) with each lead's name / temperature / mode so the sidebar
+// can show "Khan" instead of a bare phone number, a hot/warm/cold dot, and
+// which chats a human agent currently controls.
 router.get('/api/conversations', async (req, res) => {
   try {
-    const list = await messagesDb.getConversationsSummary();
-    res.json({ success: true, data: list });
+    const [list, leads] = await Promise.all([
+      messagesDb.getConversationsSummary(),
+      leadsDb.getAllLeads(),
+    ]);
+    const byPhone = {};
+    leads.forEach(l => { byPhone[l.phone] = l; });
+    const data = list.map(c => {
+      const l = byPhone[c.phone] || {};
+      return {
+        ...c,
+        name: l.name || '',
+        temperature: l.temperature || '',
+        stage: l.stage || 'NUEVO',
+        mode: l.mode || 'ai',
+      };
+    });
+    res.json({ success: true, data });
   } catch (err) {
     logger.error('Error loading conversations:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -47,18 +65,38 @@ router.get('/api/conversations', async (req, res) => {
 router.get('/api/conversations/:phone', async (req, res) => {
   try {
     const phone = req.params.phone;
-    const [messages, lead] = await Promise.all([
+    const [messages, lead, total, mode] = await Promise.all([
       messagesDb.getMessages(phone),
       leadsDb.getLeadByPhone(phone),
+      messagesDb.countMessages(phone),
+      // Read from the DB (same source the webhook trusts), not only the
+      // in-memory cache, so the AI/Human buttons can't show a stale state.
+      leadsDb.getMode(phone),
     ]);
-    // mode stays in-memory (hydrated from DB at boot, kept live during the
-    // process) — property is also in-memory only (a short-lived cache of
-    // "which property is this conversation currently about", not something
-    // that needs its own DB table).
-    const mode = conversationState.getMode(phone);
-    res.json({ success: true, data: { messages, lead, mode } });
+    res.json({ success: true, data: { messages, lead, mode, total } });
   } catch (err) {
     logger.error('Error loading conversation:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin "delete chat" (client request 2026-09-30): wipes the transcript,
+// the lead/pipeline row, and everything the process remembers about this
+// number (AI context, cached property, once-per-chat flags). Irreversible —
+// the dashboard asks for confirmation before calling this.
+router.delete('/api/conversations/:phone', async (req, res) => {
+  try {
+    const phone = req.params.phone;
+    const [deletedMessages] = await Promise.all([
+      messagesDb.deleteConversation(phone),
+      leadsDb.deleteLead(phone),
+    ]);
+    conversationState.clearConversation(phone);
+    clearConversationHistory(phone);
+    logger.info(`ADMIN deleted conversation ${phone} (${deletedMessages} messages + lead row)`);
+    res.json({ success: true, deletedMessages });
+  } catch (err) {
+    logger.error('Error deleting conversation:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
