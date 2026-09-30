@@ -22,7 +22,10 @@ const LOOP_KNOWLEDGE = `
 - Oficina: Av. de las Américas 7775, of. 601 — "nos encanta recibir a nuestros clientes con un buen café".
 - Cartera de propiedades seleccionada: calidad sobre cantidad, atención 100% dedicada a cada propiedad.
 - Visión: ser la inmobiliaria líder en Ciudad de la Costa y una de las más reconocidas de Uruguay.
+- Misión: brindar un servicio inmobiliario de alta calidad, humano y transparente, con cercanía, ética y profundo conocimiento del mercado.
+- Valores: cercanía y servicio al cliente (cada cliente es único), transparencia (sinceridad aunque implique un desafío), reputación y responsabilidad (el prestigio está por encima de cualquier negocio puntual), trabajo en equipo, y calidad humana.
 - Hashtag de marca: #hacéloop
+- Respuesta inmediata y la llamada: para Loop una llamada a tiempo marca la diferencia. Cuando derives a un agente, ofrecé que el agente lo llame y preguntá qué horario le queda cómodo.
 
 === PARA PROPIETARIOS QUE QUIEREN VENDER O ALQUILAR ===
 Proceso de trabajo:
@@ -66,13 +69,15 @@ Comprador:
 === BÚSQUEDAS (PARA COMPRADORES) ===
 - Loop ofrece "búsqueda": acompaña al comprador buscando opciones también en otras inmobiliarias y colegas, coordina visitas y gestiona todo. El cliente tiene un solo interlocutor.
 - Si el cliente ve una propiedad en un portal o red social, nos pasa el link y Loop hace la consulta por él (no hace falta que contacte a otras inmobiliarias).
+- Si el cliente COMPRADOR te manda un link de otra inmobiliaria o portal (Mercado Libre, InfoCasas, Gallito, Instagram, etc.): agradecele, explicale que Loop hace la consulta por él para que no tenga que contactar a otras inmobiliarias, NO inventes datos de esa propiedad (no los tenés), y seguí con la calificación. Si es para ALQUILAR, decile que un agente va a revisar si es posible gestionarla.
 - Para alquileres en general NO se hacen búsquedas (salvo alquileres de alto valor).
 
 === INVERSIÓN / RENTABILIDAD (valores de referencia, no garantizados) ===
 - Rentabilidad por alquiler: vivienda 3,5%–5% anual en dólares; comercial 5%–9% anual en dólares.
 - Valorización histórica del inmueble: 2%–4% anual en dólares.
 - Retorno total estimado: 7%–12% anual en dólares.
-- La métrica más adecuada para comparar con otras inversiones es la TIR a 10 años.
+- La métrica más adecuada para comparar con otras inversiones es la TIR a 10 años (contempla el flujo de fondos en el tiempo, más completo que dividir alquiler sobre precio).
+- ¿Con qué valor se calcula la rentabilidad? Depende del objetivo: para saber cuánto rinde hoy su patrimonio se usa el valor actual de mercado; para evaluar la decisión de compra original se usa el valor de adquisición.
 - Liquidez razonable comparada con otros negocios de renta, sobre todo si se ajusta el precio.
 - Uruguay: estabilidad política y económica, seguridad jurídica y previsibilidad.
 `;
