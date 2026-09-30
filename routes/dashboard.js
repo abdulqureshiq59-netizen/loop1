@@ -4,33 +4,9 @@ const conversationState = require('../services/conversationState');
 const messagesDb = require('../services/messagesDb');
 const leadsDb = require('../services/leadsDb');
 const { sendTextMessage } = require('../utils/whatsappAPI');
-const { getAllProperties, getAllProjects } = require('../services/propertyLookup');
 const adminNotify = require('../services/adminNotify');
 const { getLanguage, setLanguage, clearConversationHistory } = require('../handlers/aiReply');
 const logger = require('../utils/logger');
-
-// TEMPORARY (2026-09-19): one-off check the client asked for — how many
-// properties/projects in the live NAI catalog actually have no listed
-// price, to decide whether a "customer asked about an unpriced property"
-// admin alert is worth building. Safe to delete this route once answered;
-// it doesn't change any data, just counts and samples.
-router.get('/api/debug/price-check', async (req, res) => {
-  try {
-    const [properties, projects] = await Promise.all([getAllProperties(), getAllProjects()]);
-    const all = [...properties, ...projects];
-    const missing = all.filter(p => !p.price_display);
-    res.json({
-      success: true,
-      total: all.length,
-      with_price: all.length - missing.length,
-      without_price: missing.length,
-      examples_without_price: missing.slice(0, 10).map(p => ({ id: p.prop_id, title: p.title, zone: p.zone, operation: p.operation, link: p.link })),
-    });
-  } catch (err) {
-    logger.error('Error in price-check debug route:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 // Conversation list now comes from the database (messages table), not
 // server memory — this is what survives a restart/redeploy. Enriched
@@ -53,6 +29,8 @@ router.get('/api/conversations', async (req, res) => {
         temperature: l.temperature || '',
         stage: l.stage || 'NUEVO',
         mode: l.mode || 'ai',
+        agent_name: l.agent_name || '',
+        channel: l.channel || 'WhatsApp',
       };
     });
     res.json({ success: true, data });
