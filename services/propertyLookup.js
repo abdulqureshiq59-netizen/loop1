@@ -81,6 +81,16 @@ function isActive(raw) {
   return true;
 }
 
+// The agent's own phone, if NAI sends one with the listing (field names
+// vary between accounts, so try the usual ones). Used as a fallback for
+// the agent alert when no number was saved on the dashboard.
+function pickAgentPhone(raw) {
+  const v = raw.vendedor || raw.agente_data || {};
+  const cands = [v.whatsapp, v.celular, v.movil, v.phone, v.telefono, v.tel, v.mobile, raw.vendedor_celular, raw.vendedor_telefono];
+  const hit = cands.find(x => x && String(x).replace(/[^\d]/g, '').length >= 8);
+  return hit ? String(hit) : '';
+}
+
 function normalizeProperty(raw, isProject) {
   const { price, currency } = pickPrice(raw);
   return {
@@ -101,6 +111,7 @@ function normalizeProperty(raw, isProject) {
     status: raw.estado || (raw.alquilada === 'Si' ? 'Alquilada' : ''),
     operation: pickOperation(raw),
     agent_name: (raw.vendedor && raw.vendedor.contact) || raw.agente || raw.responsable || '',
+    agent_phone: pickAgentPhone(raw),
     is_project: !!isProject,
     is_active: isActive(raw),
     _raw: raw,
