@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -157,27 +157,25 @@
     <div class="navlinks">
       <a href="/dashboard">💬 Chats</a>
       <a href="/pipeline" class="active">📋 Pipeline</a>
+      <a href="/entrenar-ia.html">🧠 Entrenar IA</a>
     </div>
     <div class="pfilters">
-      <select id="fAgent" title="Agent"><option value="">All agents</option></select>
-      <select id="fChannel" title="Channel"><option value="">All channels</option></select>
-      <span class="summary" id="summary">Loading…</span>
+      <select id="fAgent" title="Agente"><option value="">Todos los agentes</option></select>
+      <select id="fChannel" title="Canal"><option value="">Todos los canales</option></select>
+      <span class="summary" id="summary">Cargando…</span>
     </div>
   </div>
 
   <div class="board" id="board"></div>
 
 <script>
-// Display-only translation layer. The actual stage/temperature values
-// stored in the database and sent to the API stay in Spanish (NUEVO,
-// Caliente, etc.) — only what's shown on screen here is English. If this
-// needs to go back to Spanish for the client later, just clear these two
-// maps (or set them to identity) — nothing else needs to change.
+// Display labels (Spanish, client request 2026-10-01). The values stored in
+// the database stay the same (NUEVO, Caliente...) — only the text shown.
 const STAGE_LABELS = {
-  NUEVO: "NEW", CALIFICANDO: "QUALIFYING", CALIENTE: "HOT",
-  CONTACTADO: "CONTACTED", VISITA: "VISIT", NEGOCIACION: "NEGOTIATION", CERRADO: "CLOSED",
+  NUEVO: "NUEVO", CALIFICANDO: "CALIFICANDO", CALIENTE: "CALIENTE",
+  CONTACTADO: "CONTACTADO", VISITA: "VISITA", NEGOCIACION: "NEGOCIACIÓN", CERRADO: "CERRADO",
 };
-const TEMP_LABELS = { Caliente: "Hot", Tibio: "Warm", Frio: "Cold" };
+const TEMP_LABELS = { Caliente: "Caliente", Tibio: "Tibio", Frio: "Frío" };
 
 const STAGE_COLORS = {
   NUEVO: "var(--new)", CALIFICANDO: "var(--accent)", CALIENTE: "var(--hot)",
@@ -191,7 +189,7 @@ let lastSignature = null; // skip re-render when nothing actually changed, so co
 async function load() {
   const r = await (await fetch('/api/pipeline')).json();
   if (!r.success) {
-    document.getElementById('board').innerHTML = `<p style="padding:20px;color:var(--hot);">Error loading pipeline: ${r.error}</p>`;
+    document.getElementById('board').innerHTML = `<p style="padding:20px;color:var(--hot);">Error al cargar el pipeline: ${r.error}</p>`;
     return;
   }
   stages = r.stages;
@@ -215,7 +213,7 @@ function filterSig() {
 function applyFilters(leads) {
   const a = document.getElementById('fAgent').value;
   const c = document.getElementById('fChannel').value;
-  return leads.filter(l => (!a || (l.agent_name || '(none)') === a) && (!c || (l.channel || 'WhatsApp') === c));
+  return leads.filter(l => (!a || (l.agent_name || '(sin agente)') === a) && (!c || (l.channel || 'WhatsApp') === c));
 }
 function fillSelect(id, label, values) {
   const sel = document.getElementById(id);
@@ -227,15 +225,15 @@ function fillSelect(id, label, values) {
   sel.value = values.includes(cur) ? cur : '';
 }
 function refreshFilterOptions(leads) {
-  fillSelect('fAgent', 'All agents', [...new Set(leads.map(l => l.agent_name || '(none)'))].sort());
-  fillSelect('fChannel', 'All channels', [...new Set(leads.map(l => l.channel || 'WhatsApp'))].sort());
+  fillSelect('fAgent', 'Todos los agentes', [...new Set(leads.map(l => l.agent_name || '(sin agente)'))].sort());
+  fillSelect('fChannel', 'Todos los canales', [...new Set(leads.map(l => l.channel || 'WhatsApp'))].sort());
 }
 document.getElementById('fAgent').addEventListener('change', () => { lastSignature = null; render(Object.values(leadsByPhone)); });
 document.getElementById('fChannel').addEventListener('change', () => { lastSignature = null; render(Object.values(leadsByPhone)); });
 
 function updateSummary(leads) {
   const hot = leads.filter(l => l.temperature === 'Caliente').length;
-  document.getElementById('summary').textContent = `${leads.length} leads · ${hot} hot`;
+  document.getElementById('summary').textContent = `${leads.length} lead${leads.length === 1 ? '' : 's'} · ${hot} caliente${hot === 1 ? '' : 's'}`;
 }
 
 function escapeHtml(s) {
@@ -267,7 +265,7 @@ function render(allLeads) {
     body.addEventListener('drop', e => onDrop(e, stage, body));
 
     if (stageLeads.length === 0) {
-      body.innerHTML = '<div class="empty-col">No leads</div>';
+      body.innerHTML = '<div class="empty-col">Sin leads</div>';
     } else {
       stageLeads.forEach(l => body.appendChild(makeCard(l, stage)));
     }
@@ -282,7 +280,7 @@ function makeCard(l, stage) {
   card.style.setProperty('--stage-color', STAGE_COLORS[stage] || 'var(--accent)');
   card.dataset.phone = l.phone;
 
-  const time = l.updated_at ? new Date(l.updated_at).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
+  const time = l.updated_at ? new Date(l.updated_at).toLocaleString('es-UY', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
   card.innerHTML = `
     <div class="card-name">${escapeHtml(l.name || l.phone)}</div>
     <div class="card-sub">${escapeHtml(l.channel || 'WhatsApp')} ${l.property_id ? '· prop #' + escapeHtml(l.property_id) : ''}</div>
@@ -290,7 +288,7 @@ function makeCard(l, stage) {
     <div class="card-tags">
       ${l.temperature ? `<span class="tag temp-${l.temperature}">${TEMP_LABELS[l.temperature] || l.temperature}</span>` : ''}
       ${l.zone ? `<span class="tag">${escapeHtml(l.zone)}</span>` : ''}
-      ${l.budget ? `<span class="tag">$${Number(l.budget).toLocaleString()}</span>` : ''}
+      ${l.budget ? `<span class="tag">$${Number(l.budget).toLocaleString('es-UY')}</span>` : ''}
     </div>
     <div class="card-msg">${escapeHtml(l.last_message || '')}</div>
     <div class="card-time">${time}</div>`;
@@ -324,9 +322,9 @@ async function onDrop(e, newStage, body) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: newStage }),
     })).json();
-    if (!r.success) { alert('Could not save stage: ' + r.error); lastSignature = null; load(); }
+    if (!r.success) { alert('No se pudo guardar la etapa: ' + r.error); lastSignature = null; load(); }
   } catch (err) {
-    alert('Network error saving stage');
+    alert('Error de conexión al guardar la etapa');
     lastSignature = null;
     load();
   }
