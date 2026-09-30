@@ -1,9 +1,9 @@
 const openai = require("../config/openai");
 const settingsDb = require("../services/settingsDb");
+const messagesDb = require("../services/messagesDb");
+const aiConfig = require("../services/aiConfig");
 const { LOOP_KNOWLEDGE, KNOWLEDGE_RULES } = require("../services/loopKnowledge");
 const logger = require("../utils/logger");
-
-const conversations = {};
 
 // Reply language used to be fixed by BOT_LANGUAGE in .env at process start,
 // requiring a redeploy to switch between testing (English) and the real
@@ -51,75 +51,36 @@ const COMPANY_INFO = {
   website: "https://loopinmobiliaria.uy",
 };
 
-const PROMPTS = {
+// How many saved messages to send to the model as context. Spec #12
+// ("reconocer al cliente cuando vuelve a escribir / recordar el contexto").
+const HISTORY_LIMIT = 24;
+
+const EMOJI_RULE = {
   es: {
-    languageLine: `IMPORTANTE: Respondé SIEMPRE en español, sin importar en qué idioma te escriba el cliente (inglés, portugués, o cualquier otro). Nunca cambies de idioma para "seguirle la corriente" al cliente — el negocio opera en español y todas tus respuestas deben ser en español.`,
-    base: `Sos el asistente comercial de Loop Inmobiliaria, una inmobiliaria en Uruguay. Tu tono es cercano, honesto y transparente, como el de un asesor de Loop.
-
-Datos reales de la empresa (usalos directamente si preguntan por dirección, teléfono, email o sitio web — NO digas que "un agente va a confirmar" para esto, ya lo sabés):
-- Dirección: ${COMPANY_INFO.address}
-- Teléfono / WhatsApp: ${COMPANY_INFO.phone}
-- Email: ${COMPANY_INFO.email}
-- Sitio web: ${COMPANY_INFO.website}
-
-Respondé de forma breve, cálida y profesional, en máximo 2-3 líneas.
-Tu objetivo es entender si el cliente quiere COMPRAR, ALQUILAR, INVERTIR, o VENDER una propiedad propia — y conseguir los datos relevantes para calificarlo. NUNCA vuelvas a preguntar algo que ya se respondió en la conversación o que ya conocés por los datos de la propiedad.
-Nunca inventes detalles de una propiedad que no te fueron dados.
-
-Si en cualquier momento el cliente dice que quiere visitar una propiedad en persona / de forma presencial (no un tour virtual, no fotos), preguntale qué día y horario le conviene. Confirmá de qué propiedad se trata (repetile la zona/título para que quede claro cuál) — no tenemos la dirección exacta en el sistema, así que no la inventes: decile que el agente le va a confirmar la dirección exacta junto con el día/horario. En cuanto tengas el día/horario confirmado, decile que un agente va a coordinar y confirmar los detalles de la visita.
-
-NO des por terminada la conversación ni digas que "un agente va a seguir/confirmar" después de solo 2 o 3 datos básicos — eso corta la calificación demasiado pronto. Seguí preguntando, de a un dato por mensaje y EN ESTE ORDEN, hasta completar toda la lista (no te saltes pasos, no la resumas en una pregunta abierta tipo "¿algo más que quieras compartir?"):
-
-Si quiere VENDER su propiedad:
-1. Ubicación de la propiedad
-2. Tipo de propiedad
-3. Precio esperado
-4. Plazo o motivo para vender
-5. Baños
-6. Dormitorios
-7. Alguna característica o zona específica que quiera destacar
-8. Nombre del cliente
-9. Teléfono de contacto (si ya lo tenés de la conversación de WhatsApp, confirmalo en vez de volver a preguntar)
-10. Dirección
-11. Código postal
-
-Si quiere INVERTIR (NO le preguntes por dormitorios ni baños — no son relevantes para un inversor):
-1. Presupuesto de inversión
-2. Zona preferida
-3. Tipo de propiedad
-4. Propósito o retorno esperado de la inversión (por ejemplo: renta, reventa, plazo de recupero)
-5. Financiación
-6. Plazo
-7. Nombre del cliente
-8. Teléfono de contacto (si ya lo tenés de la conversación de WhatsApp, confirmalo en vez de volver a preguntar)
-9. Dirección
-10. Código postal
-
-Si busca COMPRAR o ALQUILAR (para vivir, no para invertir):
-1. Zona
-2. Tipo de propiedad
-3. Presupuesto
-4. Dormitorios
-5. Baños
-6. Financiación (si aplica) y plazo o urgencia
-7. Nombre del cliente
-8. Teléfono de contacto (si ya lo tenés de la conversación de WhatsApp, confirmalo en vez de volver a preguntar)
-9. Dirección
-10. Código postal
-
-En cuanto tengas TODOS los datos de la lista correspondiente, mencioná INMEDIATAMENTE en ese mismo mensaje que un agente va a seguir con más detalles — no sigas pidiendo información extra ni la resumas antes de eso. Lo mismo si el cliente pidió explícitamente hablar con una persona: derivá de inmediato.`,
-    noProperty: `Si preguntan por una propiedad específica, decí que un agente va a seguir con la info exacta.`,
-    propertyIntro: `El cliente está preguntando por esta propiedad específica — usá SOLO estos datos reales, y no vuelvas a preguntar por zona ni tipo de propiedad porque ya los tenés acá:`,
-    priceUnlisted: "no listado, decí que un agente lo va a confirmar",
-    operationUnspecified: "no especificada",
-    mismatch: (operation) => `Si el cliente pide una operación distinta a la de esta propiedad (por ejemplo dice "comprar" pero esta propiedad es de "${operation}"), NO ignores la diferencia: avisale amablemente del malentendido y preguntale si de todas formas quiere info de esta propiedad o si busca otra para lo que realmente quiere hacer.`,
-    remaining: `Lo único que todavía te puede faltar es presupuesto, financiación o plazo — preguntá solo por eso si hace falta.`,
-    agentFollowUp: (agent) => `Mencioná que ${agent || "el agente asignado"} va a seguir con más detalles.`,
-    errorReply: "Disculpá, tuvimos un problema técnico. Un agente te va a responder en breve.",
+    ninguno: "No uses emojis.",
+    pocos: "Usá como máximo un emoji ocasional, solo si suma calidez.",
+    libre: "Podés usar emojis con naturalidad, sin exagerar.",
   },
   en: {
-    languageLine: `IMPORTANT: This is a TEST-MODE English reply. Do not use this in front of real customers — this language is only for the developer's own testing.`,
-    base: `You are the commercial assistant for Loop Inmobiliaria, a real estate agency in Uruguay. Your tone is close, honest and transparent, like a Loop advisor.
+    ninguno: "Do not use emojis.",
+    pocos: "Use at most one occasional emoji, only if it adds warmth.",
+    libre: "You may use emojis naturally, without overdoing it.",
+  },
+};
+
+function numbered(list) {
+  return list.map((q, i) => `${i + 1}. ${q}`).join("\n");
+}
+
+// Everything that used to be a hardcoded prompt string now comes from
+// services/aiConfig.js (edit that file to change the bot). The fixed parts
+// below are the rules that keep the system itself working (checklist order
+// gates property suggestions/alerts, never invent data, etc.).
+function buildBasePrompt(cfg, lang) {
+  const name = cfg.botName;
+  const q = cfg.questions;
+  if (lang === "en") {
+    return `You are ${name ? `${name}, ` : ""}the commercial assistant for Loop Inmobiliaria, a real estate agency in Uruguay. Tone: ${cfg.tone}. ${EMOJI_RULE.en[cfg.emojis]}
 
 Real company info (use it directly if asked for address, phone, email, or website — do NOT say "an agent will confirm" for this, you already know it):
 - Address: ${COMPANY_INFO.address}
@@ -127,130 +88,181 @@ Real company info (use it directly if asked for address, phone, email, or websit
 - Email: ${COMPANY_INFO.email}
 - Website: ${COMPANY_INFO.website}
 
-Reply briefly, warmly, and professionally, in max 2-3 lines.
-Your goal is to understand if the client wants to BUY, RENT, INVEST, or SELL a property of their own — and gather the relevant details to qualify them. NEVER re-ask something already answered in the conversation or already known from the property data.
+Reply briefly, warmly, and professionally, in max ${cfg.maxLines} lines.
+${cfg.greeting ? `If this is the start of the conversation (no previous messages from you), greet using this greeting, translated to English: "${cfg.greeting}"\n` : ""}Your goal is to understand if the client wants to BUY, RENT, INVEST, or SELL a property of their own — and gather the relevant details to qualify them. NEVER re-ask something already answered in the conversation (including earlier conversations above) or already known from the property data. If the customer is writing again after a while, recognize them and continue from what you already know.
 Never invent property details that weren't given to you.
+
+NEVER share: ${cfg.doNotShare}
 
 If at any point the customer says they want to visit a property in person / on-site (not a virtual tour, not photos), ask what day and time works for them. Confirm which property this is (repeat back its zone/title so it's clear) — we don't have the exact street address in the system, so don't invent one: tell them the agent will confirm the exact address along with the day/time. Once you have a confirmed day/time, tell them an agent will coordinate and confirm the visit details.
 
-Do NOT close the conversation or say "an agent will follow up/confirm" after just 2-3 basic details — that cuts qualification short. Keep asking, one detail per message and IN THIS ORDER, until you've gone through the whole list (don't skip steps, and don't collapse it into an open-ended "is there anything else you'd like to share?"):
+Do NOT close the conversation or say "an agent will follow up/confirm" after just 2-3 basic details — that cuts qualification short. Keep asking, one detail per message and IN THIS ORDER, until you've gone through the whole list (don't skip steps, and don't collapse it into an open-ended "is there anything else you'd like to share?"). The lists are written in Spanish — ask them in English:
 
 If they want to SELL their own property:
-1. Property location
-2. Property type
-3. Expected price
-4. Timeline or reason for selling
-5. Bathrooms
-6. Bedrooms
-7. Any specific feature or area they want to highlight
-8. Customer's name
-9. Contact phone (if you already have it from the WhatsApp conversation, confirm it instead of re-asking)
-10. Address
-11. Postcode
+${numbered(q.venta)}
 
-If they want to INVEST (do NOT ask about bedrooms or bathrooms — not relevant for an investor):
-1. Investment budget
-2. Preferred zone
-3. Property type
-4. Expected purpose/return of the investment (e.g. rental income, resale, payback timeline)
-5. Financing
-6. Timeline
-7. Customer's name
-8. Contact phone (if you already have it from the WhatsApp conversation, confirm it instead of re-asking)
-9. Address
-10. Postcode
+If they want to INVEST:
+${numbered(q.inversion)}
 
 If they want to BUY or RENT (to live in, not to invest):
-1. Zone
-2. Property type
-3. Budget
-4. Bedrooms
-5. Bathrooms
-6. Financing (if relevant) and timeline/urgency
-7. Customer's name
-8. Contact phone (if you already have it from the WhatsApp conversation, confirm it instead of re-asking)
-9. Address
-10. Postcode
+${numbered(q.compra)}
 
-As soon as you have ALL the fields from the matching list, say IMMEDIATELY in that same message that an agent will follow up — do not keep requesting extra info or summarize before that. Same if the customer explicitly asked to speak with a person: hand off right away.`,
-    noProperty: `If they ask about a specific property, say an agent will follow up with exact info.`,
+As soon as you have ALL the fields from the matching list, say IMMEDIATELY in that same message that an agent will follow up, and offer that the agent can call them (ask what time suits them) — do not keep requesting extra info or summarize before that. Same if the customer explicitly asked to speak with a person: hand off right away.
+${cfg.extraInstructions ? `\nAdditional instructions from Loop (follow them):\n${cfg.extraInstructions}\n` : ""}`;
+  }
+
+  return `Sos ${name ? `${name}, ` : ""}el asistente comercial de Loop Inmobiliaria, una inmobiliaria en Uruguay. Tono: ${cfg.tone}. ${EMOJI_RULE.es[cfg.emojis]}
+
+Datos reales de la empresa (usalos directamente si preguntan por dirección, teléfono, email o sitio web — NO digas que "un agente va a confirmar" para esto, ya lo sabés):
+- Dirección: ${COMPANY_INFO.address}
+- Teléfono / WhatsApp: ${COMPANY_INFO.phone}
+- Email: ${COMPANY_INFO.email}
+- Sitio web: ${COMPANY_INFO.website}
+
+Respondé de forma breve, cálida y profesional, en máximo ${cfg.maxLines} líneas.
+${cfg.greeting ? `Si es el inicio de la conversación (todavía no escribiste ningún mensaje), saludá usando este saludo: "${cfg.greeting}"\n` : ""}Tu objetivo es entender si el cliente quiere COMPRAR, ALQUILAR, INVERTIR, o VENDER una propiedad propia — y conseguir los datos relevantes para calificarlo. NUNCA vuelvas a preguntar algo que ya se respondió en la conversación (incluidas conversaciones anteriores que ves arriba) o que ya conocés por los datos de la propiedad. Si el cliente vuelve a escribir después de un tiempo, reconocelo y seguí desde lo que ya sabés.
+Nunca inventes detalles de una propiedad que no te fueron dados.
+
+NUNCA compartas: ${cfg.doNotShare}
+
+Si en cualquier momento el cliente dice que quiere visitar una propiedad en persona / de forma presencial (no un tour virtual, no fotos), preguntale qué día y horario le conviene. Confirmá de qué propiedad se trata (repetile la zona/título para que quede claro cuál) — no tenemos la dirección exacta en el sistema, así que no la inventes: decile que el agente le va a confirmar la dirección exacta junto con el día/horario. En cuanto tengas el día/horario confirmado, decile que un agente va a coordinar y confirmar los detalles de la visita.
+
+NO des por terminada la conversación ni digas que "un agente va a seguir/confirmar" después de solo 2 o 3 datos básicos — eso corta la calificación demasiado pronto. Seguí preguntando, de a un dato por mensaje y EN ESTE ORDEN, hasta completar toda la lista (no te saltes pasos, no la resumas en una pregunta abierta tipo "¿algo más que quieras compartir?"):
+
+Si quiere VENDER su propiedad:
+${numbered(q.venta)}
+
+Si quiere INVERTIR:
+${numbered(q.inversion)}
+
+Si busca COMPRAR o ALQUILAR (para vivir, no para invertir):
+${numbered(q.compra)}
+
+En cuanto tengas TODOS los datos de la lista correspondiente, mencioná INMEDIATAMENTE en ese mismo mensaje que un agente va a seguir con más detalles, y ofrecé que el agente lo llame (preguntá qué horario le queda cómodo) — no sigas pidiendo información extra ni la resumas antes de eso. Lo mismo si el cliente pidió explícitamente hablar con una persona: derivá de inmediato.
+${cfg.extraInstructions ? `\nInstrucciones adicionales de Loop (seguilas):\n${cfg.extraInstructions}\n` : ""}`;
+}
+
+const TEXT = {
+  es: {
+    languageLine: `IMPORTANTE: Respondé SIEMPRE en español, sin importar en qué idioma te escriba el cliente (inglés, portugués, o cualquier otro). Nunca cambies de idioma para "seguirle la corriente" al cliente — el negocio opera en español y todas tus respuestas deben ser en español.`,
+    noProperty: `Si preguntan por una propiedad específica de Loop que no tenés en estos datos, decí que un agente va a seguir con la info exacta.`,
+    propertyIntro: `El cliente está preguntando por esta propiedad específica — usá SOLO estos datos reales, y no vuelvas a preguntar por zona ni tipo de propiedad porque ya los tenés acá:`,
+    unavailable: (id, status) => `El cliente preguntó por la propiedad #${id}, pero esa propiedad YA NO ESTÁ DISPONIBLE${status ? ` (estado: ${status})` : ""}. No la ofrezcas ni des sus datos. Avisale amablemente que ya no está disponible y ofrecele buscar opciones similares: seguí con la calificación para entender qué busca.`,
+    priceUnlisted: "no listado, decí que un agente lo va a confirmar",
+    operationUnspecified: "no especificada",
+    mismatch: (operation) => `Si el cliente pide una operación distinta a la de esta propiedad (por ejemplo dice "comprar" pero esta propiedad es de "${operation}"), NO ignores la diferencia: avisale amablemente del malentendido y preguntale si de todas formas quiere info de esta propiedad o si busca otra para lo que realmente quiere hacer.`,
+    remaining: `Lo único que todavía te puede faltar es presupuesto, financiación o plazo — preguntá solo por eso si hace falta.`,
+    agentFollowUp: (agent) => `Mencioná que ${agent || "el agente asignado"} va a seguir con más detalles.`,
+    errorReply: "Disculpá, tuvimos un problema técnico. Un agente te va a responder en breve.",
+    agentNote: "[Mensaje de un agente humano de Loop]",
+  },
+  en: {
+    languageLine: `IMPORTANT: This is a TEST-MODE English reply. Do not use this in front of real customers — this language is only for the developer's own testing.`,
+    noProperty: `If they ask about a specific Loop property you don't have data for here, say an agent will follow up with exact info.`,
     propertyIntro: `The customer is asking about this specific property — use ONLY these real details, and don't re-ask for zone or type since you already have them here:`,
+    unavailable: (id, status) => `The customer asked about property #${id}, but it is NO LONGER AVAILABLE${status ? ` (status: ${status})` : ""}. Do not offer it or share its details. Kindly tell them it's no longer available and offer to find similar options: continue qualifying to understand what they're looking for.`,
     priceUnlisted: "not listed, tell them an agent will confirm",
     operationUnspecified: "not specified",
     mismatch: (operation) => `If the customer asks for a different operation than this property's (e.g. says "buy" but this property is for "${operation}"), do NOT ignore the mismatch: point it out kindly and ask if they still want info on this property or are looking for a different one for what they actually want.`,
     remaining: `The only things you might still be missing are budget, financing, or timeline — only ask about those if needed.`,
     agentFollowUp: (agent) => `Mention that ${agent || "the assigned agent"} will follow up with more details.`,
     errorReply: "Sorry, we had a technical issue. An agent will get back to you shortly.",
+    agentNote: "[Message from a human Loop agent]",
   },
 };
 
-function buildSystemPrompt(property) {
-  const t = PROMPTS[LANGUAGE] || PROMPTS.es;
-  const rules = KNOWLEDGE_RULES[LANGUAGE] || KNOWLEDGE_RULES.es;
+function buildSystemPrompt(property, cfg) {
+  const lang = LANGUAGE === "en" ? "en" : "es";
+  const t = TEXT[lang];
+  const rules = KNOWLEDGE_RULES[lang];
   // Knowledge base (client's 2026 training PDF) goes after the base
   // instructions and before the language line, so the language rule is
   // still the last thing the model reads.
-  const base = `${t.base}\n\n${rules}\n${LOOP_KNOWLEDGE}\n\n${t.languageLine}`;
+  const base = `${buildBasePrompt(cfg, lang)}\n${rules}\n${LOOP_KNOWLEDGE}\n\n${t.languageLine}`;
 
   if (!property) {
     return `${base}\n${t.noProperty}`;
   }
 
+  // Spec #4: a property that is no longer active must not keep being
+  // offered — see propertyLookup.isActive / messageHandler.
+  if (property.unavailable) {
+    return `${base}\n${t.unavailable(property.prop_id, property.status)}`;
+  }
+
   return `${base}
 ${t.propertyIntro}
 - ID: ${property.prop_id}
-- ${LANGUAGE === "en" ? "Title" : "Título"}: ${property.title}
-- ${LANGUAGE === "en" ? "Zone" : "Zona"}: ${property.zone}
-- ${LANGUAGE === "en" ? "Price" : "Precio"}: ${property.price_display || t.priceUnlisted}
-- ${LANGUAGE === "en" ? "Bedrooms" : "Dormitorios"}: ${property.bedrooms}
-- ${LANGUAGE === "en" ? "Operation" : "Operación"}: ${property.operation || t.operationUnspecified}
+- ${lang === "en" ? "Title" : "Título"}: ${property.title}
+- ${lang === "en" ? "Zone" : "Zona"}: ${property.zone}
+- ${lang === "en" ? "Price" : "Precio"}: ${property.price_display || t.priceUnlisted}
+- ${lang === "en" ? "Bedrooms" : "Dormitorios"}: ${property.bedrooms ?? "-"}
+- ${lang === "en" ? "Bathrooms" : "Baños"}: ${property.bathrooms ?? "-"}
+- ${lang === "en" ? "Area" : "Superficie"}: ${property.area_m2 ? property.area_m2 + " m²" : "-"}
+- ${lang === "en" ? "Operation" : "Operación"}: ${property.operation || t.operationUnspecified}
+- Link: ${property.link || "-"}
 ${t.mismatch(property.operation)}
 ${t.remaining}
 ${t.agentFollowUp(property.agent_name)}`;
 }
 
-async function getAIReply(from, userText, property = null) {
+// Conversation context now comes from the database, not an in-memory
+// object (2026-09-30, spec #12). The old in-memory version:
+//  - was wiped on every Render restart/cold start, so a returning customer
+//    was treated as a stranger and got re-asked everything;
+//  - never contained what a HUMAN agent wrote while in human mode, so after
+//    handing a chat back to AI, the bot didn't know what the agent had
+//    already told the customer.
+// Reading the last HISTORY_LIMIT messages from Postgres fixes both.
+async function loadHistory(from, userText, lang) {
+  let rows = [];
   try {
-    if (!conversations[from]) {
-      conversations[from] = [{ role: "system", content: buildSystemPrompt(property) }];
-    } else {
-      conversations[from][0] = { role: "system", content: buildSystemPrompt(property) };
-    }
+    rows = await messagesDb.getMessages(from, HISTORY_LIMIT);
+  } catch (err) {
+    logger.error(`Could not load history for ${from}, replying without it:`, err.message);
+  }
+  const history = rows.map(m => {
+    if (m.sender === "customer") return { role: "user", content: m.text };
+    if (m.sender === "agent") return { role: "assistant", content: `${TEXT[lang].agentNote} ${m.text}` };
+    return { role: "assistant", content: m.text };
+  });
+  // messageHandler saves the incoming message fire-and-forget, so it may or
+  // may not be in the DB yet — make sure it's the last user turn exactly once.
+  const last = history[history.length - 1];
+  if (!(last && last.role === "user" && last.content === userText)) {
+    history.push({ role: "user", content: userText });
+  }
+  return history;
+}
 
-    conversations[from].push({ role: "user", content: userText });
+async function getAIReply(from, userText, property = null) {
+  const lang = LANGUAGE === "en" ? "en" : "es";
+  try {
+    const cfg = await aiConfig.getConfig();
+    const history = await loadHistory(from, userText, lang);
+    const messages = [{ role: "system", content: buildSystemPrompt(property, cfg) }, ...history];
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: conversations[from],
+      messages,
       temperature: 0.7,
       // Raised from 150 (2026-09-30): knowledge-base answers (costs,
       // purchase steps, guarantees) can need 4-5 lines, and 150 tokens was
-      // cutting those off mid-sentence. The prompt still asks for 2-3 lines
-      // for normal qualification messages.
+      // cutting those off mid-sentence.
       max_tokens: 300,
     });
 
     const reply = response.choices[0].message.content.trim();
-    conversations[from].push({ role: "assistant", content: reply });
-
-    if (conversations[from].length > 20) {
-      conversations[from] = [conversations[from][0], ...conversations[from].slice(-19)];
-    }
-
-    logger.info(`AI reply generated for ${from} (language: ${LANGUAGE})`);
+    logger.info(`AI reply generated for ${from} (language: ${LANGUAGE}, context: ${history.length} msgs)`);
     return reply;
   } catch (err) {
     logger.error("Error calling OpenAI:", err);
-    const t = PROMPTS[LANGUAGE] || PROMPTS.es;
-    return t.errorReply;
+    return TEXT[lang].errorReply;
   }
 }
 
-// Forget the AI's own chat memory for a phone (admin "delete chat").
-// Without this the deleted conversation would still be in the OpenAI
-// context the next time that number writes in.
-function clearConversationHistory(from) {
-  delete conversations[from];
-}
+// Kept for the dashboard's "delete chat" route. History now lives in the
+// DB (which that route already deletes), so there's nothing extra to clear.
+function clearConversationHistory() {}
 
 module.exports = { getAIReply, getLanguage, setLanguage, clearConversationHistory };
