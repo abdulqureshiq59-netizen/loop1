@@ -193,7 +193,36 @@ async function getAgentPhone(agentName, fallbackPhone = '') {
   return normalizePhone(fallbackPhone);
 }
 
+// People who get EVERY alert, not only for their own properties (e.g. a
+// sales manager, or an agent added by hand who isn't on the website).
+// Stored as a list of names that also exist in the saved agent numbers.
+const ALERT_ALL_KEY = 'alert_all_names';
+
+async function getAlertAllNames() {
+  const list = await readJson(ALERT_ALL_KEY, []);
+  return Array.isArray(list) ? list.map(String) : [];
+}
+
+async function setAlertAllNames(names) {
+  const clean = [...new Set((names || []).map(n => String(n || '').trim()).filter(Boolean))];
+  return writeJson(ALERT_ALL_KEY, clean);
+}
+
+// Numbers of everyone who receives "all alerts".
+async function getAlertAllPhones() {
+  const [names, saved] = await Promise.all([getAlertAllNames(), getSavedAgentPhones()]);
+  return names.map(n => findByName(saved, n) || findByName(AGENT_PHONES, n)).filter(Boolean);
+}
+
+// Every number that belongs to Loop's own team (saved agents + code map),
+// so the bot never treats an agent writing to the Loop number as a lead.
+async function getTeamPhones() {
+  const saved = await getSavedAgentPhones();
+  return new Set([...Object.values(saved), ...Object.values(AGENT_PHONES)].map(normalizePhone).filter(Boolean));
+}
+
 module.exports = {
   CONFIG, AGENT_PHONES, getConfig, getAgentPhone, normalizePhone,
   getTraining, setTraining, getSavedAgentPhones, setSavedAgentPhones,
+  getAlertAllNames, setAlertAllNames, getAlertAllPhones, getTeamPhones,
 };
