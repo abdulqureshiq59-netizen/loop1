@@ -90,6 +90,14 @@
   .st.ok { color: var(--ok); }
   .st.warn { color: var(--warn); }
   .muted { color: var(--text-faint); font-size: 0.8em; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 0.8em; color: var(--text-dim); white-space: nowrap; cursor: pointer; }
+  .chk input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .tag-manual { font-size: 0.68em; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--accent-dim); color: var(--accent-strong); margin-left: 6px; }
+  .agents-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .tpl { font-size: 0.82em; padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; line-height: 1.5; }
+  .tpl.ok { background: #e8f8ee; color: #17663a; }
+  .tpl.wait { background: #fef3dd; color: #8a5a10; }
+  @media (max-width: 720px) { table, thead, tbody, tr, td { display: block; } thead { display: none; } tr { border-top: 1px solid var(--border); padding: 8px 0; } td { border: none; padding: 4px 0; } }
 
   .savebar {
     position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--border);
@@ -147,12 +155,17 @@
 
     <div class="card">
       <h2>Agentes y alertas</h2>
-      <p class="hint">Cuando la IA detecta de qué propiedad se trata, le manda una alerta por WhatsApp al agente responsable con todos los datos del cliente. Los agentes salen de la web; cargá el WhatsApp de cada uno con código de país (ej. 59899123456).<br>
-      Importante: WhatsApp solo entrega la alerta si ese número le escribió al número de Loop en las últimas 24 h.</p>
+      <p class="hint">Cuando la IA detecta de qué propiedad se trata, le manda una alerta por WhatsApp al agente responsable con todos los datos del cliente. Los agentes de la web aparecen solos; podés <b>agregar más personas</b> con “+ Agregar agente”. Cargá el WhatsApp con código de país (ej. 59899123456).<br>
+      Marcá <b>“Todas las alertas”</b> para que esa persona reciba las alertas de todos los leads (no solo de sus propiedades).</p>
+      <div class="tpl wait" id="tplStatus" style="display:none"></div>
       <table>
-        <thead><tr><th>Agente</th><th>Propiedades</th><th style="width:40%">WhatsApp</th><th>Estado</th></tr></thead>
-        <tbody id="agentsBody"><tr><td colspan="4" class="muted">Cargando…</td></tr></tbody>
+        <thead><tr><th>Agente</th><th>Propiedades</th><th style="width:34%">WhatsApp</th><th>Alertas</th><th>Estado</th><th></th></tr></thead>
+        <tbody id="agentsBody"><tr><td colspan="6" class="muted">Cargando…</td></tr></tbody>
       </table>
+      <div class="agents-foot">
+        <button class="btn btn-plain" onclick="addAgent()">+ Agregar agente</button>
+        <span class="muted">El administrador (número de “Alertas al admin” en Chats) recibe siempre todas las alertas.</span>
+      </div>
     </div>
   </div>
 
@@ -235,26 +248,67 @@ function removeEntry(i) {
 function renderAgents() {
   const body = $('agentsBody');
   if (!agents.length) {
-    body.innerHTML = '<tr><td colspan="4" class="muted">No se encontraron agentes en las propiedades de la web.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="muted">Todavía no hay agentes. Usá “+ Agregar agente”.</td></tr>';
     return;
   }
   body.innerHTML = agents.map((a, i) => {
     let st;
     if (a.phone) st = '<span class="st ok">✅ Recibe alertas</span>';
-    else if (a.naiPhone) st = `<span class="st ok">✅ Usa el número de la web (${escapeHtml(a.naiPhone)})</span>`;
+    else if (a.naiPhone) st = `<span class="st ok">✅ Usa el número de la web</span>`;
     else st = '<span class="st warn">⚠️ Sin número</span>';
+    const nameCell = a.inCatalog
+      ? `<b>${escapeHtml(a.name)}</b>`
+      : `<input type="text" data-a="${i}" data-f="name" value="${escapeHtml(a.name)}" placeholder="Nombre y apellido">`;
     return `
     <tr>
-      <td><b>${escapeHtml(a.name)}</b></td>
-      <td class="muted">${a.properties || '—'}</td>
-      <td><input type="text" data-a="${i}" value="${escapeHtml(a.phone)}" placeholder="${a.naiPhone ? escapeHtml(a.naiPhone) : '59899123456'}"></td>
+      <td>${nameCell}${a.inCatalog ? '' : '<span class="tag-manual">agregado</span>'}</td>
+      <td class="muted">${a.inCatalog ? (a.properties || '—') : '—'}</td>
+      <td><input type="text" data-a="${i}" data-f="phone" value="${escapeHtml(a.phone)}" placeholder="${a.naiPhone ? escapeHtml(a.naiPhone) : '59899123456'}"></td>
+      <td><label class="chk"><input type="checkbox" data-a="${i}" data-f="alertAll" ${a.alertAll ? 'checked' : ''}> Todas las alertas</label></td>
       <td>${st}</td>
+      <td>${a.inCatalog ? '' : `<button class="btn btn-del" onclick="removeAgent(${i})" title="Quitar">🗑</button>`}</td>
     </tr>`;
   }).join('');
-  body.querySelectorAll('input').forEach(inp => inp.addEventListener('input', ev => {
-    agents[Number(ev.target.dataset.a)].phone = ev.target.value;
+  body.querySelectorAll('[data-a]').forEach(inp => inp.addEventListener(inp.type === 'checkbox' ? 'change' : 'input', ev => {
+    const a = agents[Number(ev.target.dataset.a)];
+    const f = ev.target.dataset.f;
+    a[f] = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
     setDirty(true);
   }));
+}
+
+function addAgent() {
+  agents.push({ name: '', phone: '', naiPhone: '', alertAll: true, inCatalog: false, properties: 0 });
+  renderAgents();
+  setDirty(true);
+  const inputs = document.querySelectorAll('#agentsBody input[data-f="name"]');
+  const last = inputs[inputs.length - 1];
+  if (last) last.focus();
+}
+
+function removeAgent(i) {
+  if (!confirm(`¿Quitar a ${agents[i].name || 'este agente'}? Deja de recibir alertas al guardar.`)) return;
+  agents.splice(i, 1);
+  renderAgents();
+  setDirty(true);
+}
+
+async function loadTemplateStatus() {
+  try {
+    const r = await fetch('/api/alert-template').then(r => r.json());
+    const el = $('tplStatus');
+    if (!r.success || r.status === 'OFF' || r.status === 'UNKNOWN') return;
+    el.style.display = 'block';
+    if (r.status === 'APPROVED') {
+      el.className = 'tpl ok';
+      el.textContent = '✅ Plantilla de alertas aprobada por Meta: los agentes reciben las alertas aunque no hayan escrito al número de Loop.';
+    } else {
+      el.className = 'tpl wait';
+      el.textContent = r.status === 'NOT_CREATED'
+        ? '⏳ La plantilla de alertas todavía no está creada. Mientras tanto, cada agente tiene que haberle escrito al número de Loop en las últimas 24 h para recibir la alerta.'
+        : `⏳ Plantilla de alertas en revisión por Meta (${r.status}). Mientras tanto, cada agente tiene que haberle escrito al número de Loop en las últimas 24 h.`;
+    }
+  } catch (err) { /* not critical */ }
 }
 
 async function load() {
@@ -277,6 +331,12 @@ async function load() {
 async function saveAll() {
   const bad = entries.findIndex(e => e.title.trim() && !e.content.trim());
   if (bad !== -1) { showToast(`La entrada “${entries[bad].title}” no tiene contenido`, true); return; }
+  const noName = agents.findIndex(a => !a.inCatalog && !String(a.name || '').trim() && String(a.phone || '').trim());
+  if (noName !== -1) { showToast('Falta el nombre de un agente agregado', true); return; }
+  const noPhone = agents.find(a => !a.inCatalog && String(a.name || '').trim() && !String(a.phone || '').trim());
+  if (noPhone) { showToast(`Falta el WhatsApp de ${noPhone.name}`, true); return; }
+  const allNoPhone = agents.find(a => a.alertAll && !String(a.phone || '').trim());
+  if (allNoPhone) { showToast(`Para “Todas las alertas”, ${allNoPhone.name} necesita un WhatsApp cargado`, true); return; }
   $('saveBtn').disabled = true;
   $('status').textContent = 'Guardando…';
   try {
@@ -295,6 +355,7 @@ async function saveAll() {
   }
 }
 
+loadTemplateStatus();
 window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 load();
 </script>
