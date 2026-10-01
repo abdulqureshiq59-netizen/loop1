@@ -11,6 +11,7 @@ const { upsertLead } = require("../services/leadSync");
 const leadsDb = require("../services/leadsDb");
 const messagesDb = require("../services/messagesDb");
 const adminNotify = require("../services/adminNotify");
+const aiConfig = require("../services/aiConfig");
 const logger = require("../utils/logger");
 
 // A function, not a load-time constant (2026-09-20): language can now be
@@ -72,8 +73,26 @@ async function resolveProperty(from, text) {
   }
 }
 
+// Messages from Loop's own team (admin or a saved agent number) are not
+// leads: an agent replying "ok" to an alert, or writing to the Loop number,
+// used to get an AI reply and show up as a new customer in Chats/Pipeline.
+async function isTeamNumber(from) {
+  try {
+    const [admin, team] = await Promise.all([adminNotify.getAdminPhone(), aiConfig.getTeamPhones()]);
+    const n = aiConfig.normalizePhone(from);
+    return (admin && aiConfig.normalizePhone(admin) === n) || team.has(n);
+  } catch (err) {
+    return false; // if settings can't be read, treat as a normal customer
+  }
+}
+
 async function handleIncomingMessage(message, from) {
   try {
+    if (await isTeamNumber(from)) {
+      logger.info(`Message from a Loop team number (${from}) — not a lead, AI does not reply`);
+      return;
+    }
+
     let type = message.type;
     let text;
 
