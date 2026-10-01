@@ -218,30 +218,36 @@ router.post('/api/training', async (req, res) => {
   }
 });
 
-// Responsible agents found in the live property catalog + the WhatsApp
-// number used for their alerts (saved one > code > NAI's own).
+// Agents for the "Entrenar IA" page: the responsible agents found in the
+// live property catalog PLUS anyone added by hand (client 2026-10-01: "no
+// veo opción para agregar más agentes y alertas"). Each has a WhatsApp
+// number and an "all alerts" flag (gets every alert, not only for their
+// own properties).
 router.get('/api/agents', async (req, res) => {
   try {
-    const [properties, projects, saved] = await Promise.all([
+    const [properties, projects, saved, allNames] = await Promise.all([
       getAllProperties().catch(() => []),
       getAllProjects().catch(() => []),
       aiConfig.getSavedAgentPhones(),
+      aiConfig.getAlertAllNames(),
     ]);
     const byName = {};
     [...properties, ...projects].forEach(p => {
       const name = String(p.agent_name || '').trim();
       if (!name) return;
-      if (!byName[name]) byName[name] = { name, properties: 0, naiPhone: '' };
+      if (!byName[name]) byName[name] = { name, properties: 0, naiPhone: '', inCatalog: true };
       byName[name].properties += 1;
       if (!byName[name].naiPhone && p.agent_phone) byName[name].naiPhone = aiConfig.normalizePhone(p.agent_phone);
     });
-    Object.keys(saved).forEach(n => { if (!byName[n]) byName[n] = { name: n, properties: 0, naiPhone: '' }; });
-    const agents = await Promise.all(Object.values(byName).map(async a => ({
+    [...Object.keys(saved), ...allNames].forEach(n => {
+      if (!byName[n]) byName[n] = { name: n, properties: 0, naiPhone: '', inCatalog: false };
+    });
+    const agents = Object.values(byName).map(a => ({
       ...a,
       phone: saved[a.name] || '',
-      effectivePhone: await aiConfig.getAgentPhone(a.name, a.naiPhone),
-    })));
-    agents.sort((x, y) => x.name.localeCompare(y.name));
+      alertAll: allNames.includes(a.name),
+    }));
+    agents.sort((x, y) => (y.inCatalog - x.inCatalog) || x.name.localeCompare(y.name));
     res.json({ success: true, agents });
   } catch (err) {
     logger.error('Error loading agents:', err.message);
@@ -252,13 +258,38 @@ router.get('/api/agents', async (req, res) => {
 router.post('/api/agents', async (req, res) => {
   try {
     const map = {};
-    (req.body.agents || []).forEach(a => { if (a && a.name) map[a.name] = a.phone || ''; });
+    const all = [];
+    (req.body.agents || []).forEach(a => {
+      const name = String((a && a.name) || '').trim();
+      if (!name) return;
+      map[name] = a.phone || '';
+      if (a.alertAll) all.push(name);
+    });
     const saved = await aiConfig.setSavedAgentPhones(map);
-    logger.info(`Agent numbers updated from the dashboard (${Object.keys(saved).length} saved)`);
+    await aiConfig.setAlertAllNames(all.filter(n => saved[n]));
+    logger.info(`Agents updated from the dashboard (${Object.keys(saved).length} numbers, ${all.length} with all alerts)`);
     res.json({ success: true, saved });
   } catch (err) {
     logger.error('Error saving agents:', err.message);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Whether the Meta alert template is set up and approved (shown on the
+// "Entrenar IA" page so the client knows if alerts depend on the 24h rule).
+router.get('/api/alert-template', async (req, res) => {
+  const name = adminNotify.ALERT_TEMPLATE_NAME;
+  if (!name) return res.json({ success: true, status: 'OFF' });
+  try {
+    const axios = require('axios');
+    const r = await axios.get(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`, {
+      headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
+      params: { name, fields: 'name,status,language' },
+    });
+    const row = (r.data.data || []).find(t => t.name === name);
+    res.json({ success: true, name, status: row ? row.status : 'NOT_CREATED' });
+  } catch (err) {
+    res.json({ success: true, name, status: 'UNKNOWN' });
   }
 });
 
