@@ -1,13 +1,12 @@
 // services/adminNotify.js
-// WhatsApp alerts to Loop's team, all in SPANISH (client request 2026-10-01).
+// WhatsApp alerts to Loop's team, all in SPANISH.
 //
 // Who gets them:
 //  - the admin number (saved on the Chats page) — always;
-//  - the property's RESPONSIBLE AGENT (client request 2026-10-01: "siempre
-//    que detecte de quién es la propiedad, que mande la alerta con toda la
-//    información al agente correspondiente"). Agent number comes from, in
-//    order: dashboard "Entrenar IA" -> Agentes, AGENT_PHONES in
-//    services/aiConfig.js, or the phone NAI sends with the listing.
+//  - the property's RESPONSIBLE AGENT. Agent number comes from, in order:
+//    dashboard "Entrenar IA" -> Agentes, AGENT_PHONES in
+//    services/aiConfig.js, or the phone NAI sends with the listing;
+//  - anyone marked "Recibe todas las alertas" on that same page.
 //
 // When:
 //  - notifyPropertyInquiry: the bot identified which property the customer
@@ -16,15 +15,28 @@
 //  - notifyVisitScheduled: customer confirmed a day/time to visit;
 //  - notifyHandoff: the AI handed the chat to a person.
 //
-// WhatsApp rule: the Cloud API only delivers a free-form message to a number
-// that wrote to the Loop number in the last 24h. If an agent hasn't, Meta
-// rejects the send (logged as a failed alert).
+// HOW (2026-10-01, client request): WhatsApp only lets a business send a
+// free-form text to someone who wrote to it in the last 24h. To not depend
+// on that, every alert is sent as a Meta-APPROVED TEMPLATE
+// (ALERT_TEMPLATE_NAME, created once with create-alert-template.js), which
+// is delivered any time. If the template isn't approved yet / doesn't
+// exist, it falls back to the old free-form text automatically.
 const settingsDb = require('./settingsDb');
 const aiConfig = require('./aiConfig');
-const { sendTextMessage } = require('../utils/whatsappAPI');
+const { sendTextMessage, sendTemplateMessage } = require('../utils/whatsappAPI');
 const logger = require('../utils/logger');
 
 const ADMIN_PHONE_KEY = 'admin_phone';
+
+// Template set up by create-alert-template.js. Set ALERT_TEMPLATE_NAME to
+// an empty value in Render to turn templates off and use plain text only.
+const ALERT_TEMPLATE_NAME = process.env.ALERT_TEMPLATE_NAME !== undefined
+  ? process.env.ALERT_TEMPLATE_NAME.trim()
+  : 'alerta_interna_loop';
+const ALERT_TEMPLATE_LANG = process.env.ALERT_TEMPLATE_LANG || 'es';
+// Max characters per template variable — keeps the whole template under
+// WhatsApp's 1024-character body limit.
+const PARAM_MAX = [80, 90, 160, 400, 120];
 
 const OPERATION_LABELS = { compra: 'Compra', alquiler: 'Alquiler', inversion: 'Inversión', venta: 'Venta (propietario)' };
 const TEMP_LABELS = { Caliente: 'Caliente 🔥', Tibio: 'Tibio', Frio: 'Frío' };
@@ -45,36 +57,69 @@ async function setAdminPhone(phone) {
   return settingsDb.setSetting(ADMIN_PHONE_KEY, phone);
 }
 
-async function sendTo(phone, message, who) {
+// If Meta says the template doesn't exist / isn't approved yet, don't try
+// it again for a while (avoids an error on every single alert meanwhile).
+let templateUnavailableUntil = 0;
+
+async function deliver(phone, text, tpl, who) {
+  if (tpl && ALERT_TEMPLATE_NAME && Date.now() > templateUnavailableUntil) {
+    try {
+      const params = [tpl.title, tpl.customer, tpl.property, tpl.info, tpl.link];
+      await sendTemplateMessage(phone, ALERT_TEMPLATE_NAME, ALERT_TEMPLATE_LANG, params.map((p, i) => clip(p, PARAM_MAX[i])));
+      logger.info(`Alert (template) sent to ${who} ${phone}: ${tpl.title}`);
+      return true;
+    } catch (err) {
+      const code = err.response?.data?.error?.code;
+      // 132000-132016 = template missing / not approved / wrong params.
+      if (code && code >= 132000 && code < 133000) {
+        templateUnavailableUntil = Date.now() + 10 * 60 * 1000;
+        logger.warn(`Alert template "${ALERT_TEMPLATE_NAME}" not usable yet (code ${code}) — sending plain text for the next 10 min`);
+      }
+    }
+  }
   try {
-    await sendTextMessage(phone, message);
-    logger.info(`Alert sent to ${who} ${phone}: ${message.split('\n')[0]}`);
+    await sendTextMessage(phone, text);
+    logger.info(`Alert (text) sent to ${who} ${phone}: ${text.split('\n')[0]}`);
     return true;
   } catch (err) {
-    logger.error(`Failed to send alert to ${who} ${phone} (if they haven't messaged the Loop number in 24h, WhatsApp blocks it):`, err.message);
+    logger.error(`Failed to send alert to ${who} ${phone}:`, err.message);
     return false;
   }
 }
 
-// Sends to the responsible agent (if we have their number) and the admin.
-// If the agent is known but has no number, the admin's copy says so, so
-// someone can add it in "Entrenar IA" -> Agentes.
-async function sendAlert(message, agentName = '', agentPhoneHint = '') {
-  const [admin, agent] = await Promise.all([
+function clip(v, max) {
+  const t = String(v == null ? '' : v).trim() || '-';
+  return t.length > max ? t.slice(0, max - 1) + '…' : t;
+}
+
+// Sends to: responsible agent + everyone with "all alerts" + admin (each
+// number once). If the agent is known but has no number, the admin's copy
+// says so, so someone can add it in "Entrenar IA" -> Agentes.
+async function sendAlert(message, agentName = '', agentPhoneHint = '', tpl = null) {
+  const [admin, agent, allPhones] = await Promise.all([
     getAdminPhone().catch(() => ''),
     aiConfig.getAgentPhone(agentName, agentPhoneHint).catch(() => ''),
+    aiConfig.getAlertAllPhones().catch(() => []),
   ]);
-  if (!admin && !agent) {
-    logger.info(`Alert skipped (no admin/agent phone configured yet): ${message.split('\n')[0]}`);
-    return;
+  const adminPhone = aiConfig.normalizePhone(admin);
+  const sent = new Set();
+
+  if (agent) { await deliver(agent, message, tpl, `agent (${agentName || 'NAI phone'})`); sent.add(agent); }
+  for (const p of allPhones) {
+    if (sent.has(p)) continue;
+    await deliver(p, message, tpl, 'all-alerts recipient');
+    sent.add(p);
   }
-  if (agent) await sendTo(agent, message, `agent (${agentName || 'NAI phone'})`);
-  if (admin && admin !== agent) {
-    const note = agentName && !agent
+  if (adminPhone && !sent.has(adminPhone)) {
+    const missing = agentName && !agent;
+    const note = missing
       ? `\n\n⚠️ El agente ${agentName} no tiene número cargado. Agregalo en el Dashboard → 🧠 Entrenar IA → Agentes para que reciba sus alertas.`
       : '';
-    await sendTo(admin, message + note, 'admin');
+    const adminTpl = tpl && missing ? { ...tpl, info: `⚠️ ${agentName} sin número cargado (Entrenar IA → Agentes). ${tpl.info}` } : tpl;
+    await deliver(adminPhone, message + note, adminTpl, 'admin');
+    sent.add(adminPhone);
   }
+  if (!sent.size) logger.info(`Alert skipped (no admin/agent phone configured yet): ${message.split('\n')[0]}`);
 }
 
 // Kept for any caller that only wants the admin.
@@ -84,7 +129,7 @@ async function sendAdminAlert(message) {
     logger.info(`Admin alert skipped (no admin phone configured yet): ${message.split('\n')[0]}`);
     return;
   }
-  await sendTo(phone, message, 'admin');
+  await deliver(phone, message, null, 'admin');
 }
 
 function leadLines(lead = {}) {
@@ -127,9 +172,33 @@ function recentLines(recent = []) {
   return out;
 }
 
+// ---- One-line versions for the template's variables ----
+function tplCustomer(phone, lead = {}) {
+  return lead.name ? `${lead.name} (+${phone})` : `+${phone}`;
+}
+function tplProperty(property) {
+  if (!property || !property.prop_id) return 'Sin propiedad específica';
+  return [
+    `#${property.prop_id}`,
+    property.title,
+    property.zone ? `(${property.zone})` : '',
+    property.price_display,
+    property.unavailable ? 'YA NO DISPONIBLE' : '',
+  ].filter(Boolean).join(' ');
+}
+function tplInfo(parts, lead = {}, recent = []) {
+  const bits = [...parts];
+  const l = leadLines(lead).filter(x => !x.startsWith('Nombre:'));
+  if (l.length) bits.push(l.join(', '));
+  const lastCustomer = [...recent].reverse().find(m => m.sender === 'customer');
+  if (lastCustomer) bits.push(`Último mensaje: "${String(lastCustomer.text || '').replace(/\s+/g, ' ').slice(0, 140)}"`);
+  return bits.filter(Boolean).join(' | ') || 'Sin más datos todavía';
+}
+
 // The bot just identified (or suggested) a property -> tell its agent now,
 // so they can follow the conversation from the start.
 async function notifyPropertyInquiry(phone, { property, lead = {}, recent = [], suggested = false } = {}) {
+  const title = suggested ? 'la IA le sugirió tu propiedad a un cliente' : 'nuevo cliente consultando por tu propiedad';
   const lines = [
     suggested
       ? `🏠 La IA le sugirió tu propiedad a un cliente: ${phone}`
@@ -141,14 +210,28 @@ async function notifyPropertyInquiry(phone, { property, lead = {}, recent = [], 
   if (info.length) lines.push('', 'Lo que sabemos del cliente:', ...info);
   lines.push(...recentLines(recent));
   lines.push('', `La IA sigue atendiendo y calificando. Ver la conversación: ${chatLink(phone)}`);
-  await sendAlert(lines.join('\n'), property && property.agent_name, property && property.agent_phone);
+  const tpl = {
+    title,
+    customer: tplCustomer(phone, lead),
+    property: tplProperty(property),
+    info: tplInfo([property && property.agent_name ? `Agente: ${property.agent_name}` : '', 'La IA sigue atendiendo'], lead, recent),
+    link: chatLink(phone),
+  };
+  await sendAlert(lines.join('\n'), property && property.agent_name, property && property.agent_phone, tpl);
 }
 
 async function notifyHotLead(phone, lead = {}, agentName = '', agentPhoneHint = '', property = null) {
   const lines = [`🔥 Lead CALIENTE (calificación completa): ${phone}`, ...leadLines(lead), ...propertyLines(property)];
   if (agentName) lines.push(`Agente responsable: ${agentName}`);
   lines.push('', `Ver la conversación: ${chatLink(phone)}`);
-  await sendAlert(lines.join('\n'), agentName, agentPhoneHint);
+  const tpl = {
+    title: 'lead CALIENTE, calificación completa',
+    customer: tplCustomer(phone, lead),
+    property: tplProperty(property),
+    info: tplInfo([agentName ? `Agente: ${agentName}` : ''], lead),
+    link: chatLink(phone),
+  };
+  await sendAlert(lines.join('\n'), agentName, agentPhoneHint, tpl);
 }
 
 async function notifyVisitScheduled(phone, details = {}) {
@@ -161,7 +244,14 @@ async function notifyVisitScheduled(phone, details = {}) {
   if (details.agent_name) lines.push(`Agente responsable: ${details.agent_name}`);
   lines.push(`Nota: la dirección exacta no está en el sistema — confirmala directamente con el cliente.`);
   lines.push('', `Ver la conversación: ${chatLink(phone)}`);
-  await sendAlert(lines.join('\n'), details.agent_name || '', details.agent_phone || '');
+  const tpl = {
+    title: 'visita coordinada',
+    customer: tplCustomer(phone, { name: details.name }),
+    property: details.property || (details.property_id ? `#${details.property_id}` : 'Sin propiedad específica'),
+    info: [details.visitWhen ? `Día/horario: ${details.visitWhen}` : '', details.agent_name ? `Agente: ${details.agent_name}` : '', 'Confirmá la dirección exacta con el cliente'].filter(Boolean).join(' | '),
+    link: chatLink(phone),
+  };
+  await sendAlert(lines.join('\n'), details.agent_name || '', details.agent_phone || '', tpl);
 }
 
 // "Derivar al agente correspondiente con todo el contexto recopilado.
@@ -175,10 +265,18 @@ async function notifyHandoff(phone, { reason = '', lead = {}, property = null, r
   if (info.length) lines.push('', 'Lo que sabemos del cliente:', ...info);
   lines.push(...recentLines(recent));
   lines.push('', `La IA quedó pausada en este chat. Respondé desde el Dashboard: ${chatLink(phone)}`);
-  await sendAlert(lines.join('\n'), agentName, agentPhoneHint);
+  const tpl = {
+    title: 'el cliente necesita una persona (la IA quedó pausada)',
+    customer: tplCustomer(phone, lead),
+    property: tplProperty(property),
+    info: tplInfo([reason ? `Motivo: ${reason}` : '', agentName ? `Agente: ${agentName}` : ''], lead, recent),
+    link: chatLink(phone),
+  };
+  await sendAlert(lines.join('\n'), agentName, agentPhoneHint, tpl);
 }
 
 module.exports = {
   getAdminPhone, setAdminPhone, sendAdminAlert, sendAlert,
   notifyPropertyInquiry, notifyHotLead, notifyVisitScheduled, notifyHandoff,
+  ALERT_TEMPLATE_NAME, ALERT_TEMPLATE_LANG,
 };
