@@ -74,8 +74,52 @@ async function downloadMedia(mediaId) {
   return { buffer: Buffer.from(fileRes.data), mimeType: mime_type };
 }
 
+// Sends a Meta-APPROVED template (2026-10-01, client request). Unlike a
+// free-form text, a template reaches the number even if it hasn't written
+// to the Loop number in the last 24 hours — used for internal alerts to
+// agents (see services/adminNotify.js). Meta rejects parameters that
+// contain line breaks, tabs or 4+ spaces in a row, so they're cleaned here.
+function cleanTemplateParam(v, max) {
+  let t = String(v == null ? "" : v).replace(/[\r\n\t]+/g, " · ").replace(/ {2,}/g, " ").trim();
+  if (!t) t = "-";
+  return t.length > max ? t.slice(0, max - 1) + "…" : t;
+}
+
+async function sendTemplateMessage(to, templateName, languageCode, params = [], maxParamChars = 300) {
+  try {
+    const response = await axios.post(
+      GRAPH_API_URL,
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components: [{
+            type: "body",
+            parameters: params.map(p => ({ type: "text", text: cleanTemplateParam(p, maxParamChars) })),
+          }],
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    logger.info(`Template "${templateName}" sent to ${to}`);
+    return response.data;
+  } catch (err) {
+    logger.error(`Error sending template "${templateName}" to ${to}:`, err.response?.data || err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   sendTextMessage,
+  sendTemplateMessage,
   markMessageAsRead,
   downloadMedia,
 };
